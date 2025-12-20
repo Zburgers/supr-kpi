@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useTheme } from '@/components/theme-provider'
-import { RefreshCw, Moon, Sun, Monitor, Zap } from 'lucide-react'
+import { RefreshCw, Moon, Sun, Monitor, Zap, Settings, ChevronRight } from 'lucide-react'
 import type { DateRange } from '@/types'
 
 interface HeaderProps {
@@ -25,6 +25,8 @@ interface HeaderProps {
   onSync: () => void
   isSyncing: boolean
   lastUpdated: Date | null
+  showNavigation?: boolean
+  breadcrumbs?: Array<{ label: string; href?: string }>
 }
 
 export function Header({
@@ -33,6 +35,8 @@ export function Header({
   onSync,
   isSyncing,
   lastUpdated,
+  showNavigation = true,
+  breadcrumbs,
 }: HeaderProps) {
   const { theme, setTheme } = useTheme()
 
@@ -52,7 +56,26 @@ export function Header({
             <Zap className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold tracking-tight">KPI Command Center</h1>
           </div>
-          {lastUpdated && (
+          
+          {/* Breadcrumbs */}
+          {breadcrumbs && breadcrumbs.length > 0 && (
+            <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+              {breadcrumbs.map((crumb, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <ChevronRight className="h-4 w-4" />
+                  {crumb.href ? (
+                    <a href={crumb.href} className="hover:text-foreground transition-colors">
+                      {crumb.label}
+                    </a>
+                  ) : (
+                    <span className="text-foreground">{crumb.label}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {lastUpdated && !breadcrumbs && (
             <span className="hidden sm:inline text-xs text-muted-foreground">
               Last updated: {formatLastUpdated(lastUpdated)}
             </span>
@@ -60,30 +83,34 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Date Range Selector */}
-          <Select value={dateRange} onValueChange={(v) => onDateRangeChange(v as DateRange)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Select range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="yesterday">Yesterday</SelectItem>
-              <SelectItem value="7d">Last 7 Days</SelectItem>
-              <SelectItem value="30d">Last 30 Days</SelectItem>
-              <SelectItem value="mtd">Month to Date</SelectItem>
-            </SelectContent>
-          </Select>
+          {showNavigation && (
+            <>
+              {/* Date Range Selector */}
+              <Select value={dateRange} onValueChange={(v) => onDateRangeChange(v as DateRange)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Select range" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="7d">Last 7 Days</SelectItem>
+                  <SelectItem value="30d">Last 30 Days</SelectItem>
+                  <SelectItem value="mtd">Month to Date</SelectItem>
+                </SelectContent>
+              </Select>
 
-          {/* Sync Button */}
-          <Button onClick={onSync} disabled={isSyncing} className="gap-2">
-            <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync All'}</span>
-          </Button>
+              {/* Sync Button */}
+              <Button onClick={onSync} disabled={isSyncing} className="gap-2">
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync All'}</span>
+              </Button>
 
-          {/* Sheet Viewer */}
-          <SheetViewerDialog />
+              {/* Sheet Viewer */}
+              <SheetViewerDialog />
 
-          {/* Manual Data Pull */}
-          <ManualPullDialog />
+              {/* Manual Data Pull */}
+              <ManualPullDialog />
+            </>
+          )}
 
           {/* Theme Toggle */}
           <DropdownMenu>
@@ -114,8 +141,17 @@ export function Header({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Settings */}
-          <SettingsDialog />
+          {/* Settings Link */}
+          {showNavigation && (
+            <Button variant="outline" size="icon" asChild>
+              <a href="/settings">
+                <Settings className="h-4 w-4" />
+              </a>
+            </Button>
+          )}
+
+          {/* Settings (Original Dialog) */}
+          {showNavigation && <SettingsDialog />}
         </div>
       </div>
     </header>
