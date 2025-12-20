@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KPI Data Command Center - Multi-Platform Insights</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest"></script>
+    <style>
+        :root {
+            --color-meta: #0084ff;
+            --color-ga4: #f8b500;
+            --color-shopify: #96bf48;
+            --color-primary: #208081;
+            --color-success: #20b981;
+            --color-error: #ef4444;
+        }
+        
+        * { box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .pulse-skeleton {
+            background: linear-gradient(
+                90deg,
+                #e2e8f0 0%,
+                #f1f5f9 50%,
+                #e2e8f0 100%
+            );
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .platform-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-meta {
+            background: rgba(0, 132, 255, 0.1);
+            color: var(--color-meta);
+        }
+
+        .badge-ga4 {
+            background: rgba(248, 181, 0, 0.1);
+            color: var(--color-ga4);
+        }
+
+        .badge-shopify {
+            background: rgba(150, 191, 72, 0.1);
+            color: var(--color-shopify);
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .metric-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent-color, #208081);
+        }
+
+        .metric-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .metric-change {
+            font-size: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .metric-change.positive {
+            color: var(--color-success);
+        }
+
+        .metric-change.negative {
+            color: var(--color-error);
+        }
+
+        .metric-change.neutral {
+            color: #64748b;
+        }
+
+        .chart-container {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-area {
+            position: relative;
+            height: 250px;
+            margin-bottom: 1rem;
+        }
+
+        .line-chart {
+            width: 100%;
+            height: 100%;
+        }
+
+        .segment-control {
+            display: inline-flex;
+            background: #e2e8f0;
+            border-radius: 999px;
+            padding: 4px;
+        }
+
+        .segment-control button {
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            color: #64748b;
+        }
+
+        .segment-control button.active {
+            background: white;
+            color: var(--color-primary);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table thead th {
+            background: #f1f5f9;
+            padding: 12px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .data-table tbody td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+        }
+
+        .data-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .refresh-spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .modal-overlay {
+            animation: fadeIn 0.2s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .comparison-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .comparison-bar-fill {
+            flex: 1;
+            height: 24px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .comparison-bar-fill span {
+            display: block;
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        @media (max-width: 768px) {
+            .metric-grid { grid-template-columns: repeat(2, 1fr); }
+            .panels-2col { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ==================== MOCK DATA GENERATOR ====================
+        // This mirrors your three raw data sources
+        const generateRawData = (daysBack = 7) => {
+            const data = [];
+            const baseDate = new Date();
+
+            for (let i = daysBack; i >= 0; i--) {
+                const date = new Date(baseDate);
+                date.setDate(date.getDate() - i);
+                const dateStr = date.toISOString().split('T')[0];
+
+                // Meta Ads Raw Daily
+                const metaSpend = Math.floor(Math.random() * 3000) + 1200;
+                const metaImpressions = Math.floor(Math.random() * 50000) + 20000;
+                const metaClicks = Math.floor(Math.random() * 2000) + 500;
+                const metaPurchases = Math.floor(Math.random() * 150) + 30;
+                const metaRevenue = metaPurchases * (Math.random() * 150 + 100);
+
+                // GA4 Raw Daily
+                const ga4Sessions = Math.floor(Math.random() * 3000) + 800;
+                const ga4Users = Math.floor(Math.random() * 2000) + 400;
+                const ga4ATC = Math.floor(Math.random() * 400) + 100;
+                const ga4Purchases = Math.floor(Math.random() * 200) + 40;
+                const ga4Revenue = ga4Purchases * (Math.random() * 120 + 80);
+                const ga4BounceRate = (Math.random() * 40 + 35).toFixed(1);
+
+                // Shopify Raw Daily
+                const shopifyOrders = Math.floor(Math.random() * 250) + 80;
+                const shopifyRevenue = shopifyOrders * (Math.random() * 150 + 120);
+                const shopifyNetRevenue = shopifyRevenue * 0.75; // 25% cost buffer
+                const shopifyReturns = Math.floor(shopifyOrders * 0.05);
+                const shopifyNewCustomers = Math.floor(shopifyOrders * 0.4);
+
+                data.push({
+                    date: dateStr,
+                    meta_raw_daily: {
+                        date: dateStr,
+                        spend: metaSpend,
+                        reach: Math.floor(metaImpressions * 0.8),
+                        impressions: metaImpressions,
+                        clicks: metaClicks,
+                        landing_page_views: Math.floor(metaClicks * 0.85),
+                        add_to_cart: Math.floor(metaPurchases * 2.5),
+                        initiate_checkout: Math.floor(metaPurchases * 1.8),
+                        purchases: metaPurchases,
+                        revenue: metaRevenue,
+                    },
+                    ga4_raw_daily: {
+                        date: dateStr,
+                        sessions: ga4Sessions,
+                        users: ga4Users,
+                        add_to_cart: ga4ATC,
+                        purchases: ga4Purchases,
+                        revenue: ga4Revenue,
+                        bounce_rate: ga4BounceRate,
+                    },
+                    shopify_raw_daily: {
+                        date: dateStr,
+                        total_orders: shopifyOrders,
+                        total_revenue: shopifyRevenue,
+                        net_revenue: shopifyNetRevenue,
+                        total_returns: shopifyReturns,
+                        new_customers: shopifyNewCustomers,
+                        repeat_customers: shopifyOrders - shopifyNewCustomers,
+                    },
+                });
+            }
+
+            return data;
+        };
+
+        // ==================== CALCULATION UTILITIES ====================
+        const calculateMetrics = (rawData) => {
+            const latest = rawData[rawData.length - 1];
+            const previous = rawData.length > 1 ? rawData[rawData.length - 2] : latest;
+
+            // Meta Metrics
+            const metaCPM = (latest.meta_raw_daily.spend / latest.meta_raw_daily.impressions * 1000).toFixed(2);
+            const metaCTR = ((latest.meta_raw_daily.clicks / latest.meta_raw_daily.impressions) * 100).toFixed(2);
+            const metaCAC = (latest.meta_raw_daily.spend / latest.meta_raw_daily.purchases).toFixed(2);
+            const metaROAS = (latest.meta_raw_daily.revenue / latest.meta_raw_daily.spend).toFixed(2);
+            const metaCPC = (latest.meta_raw_daily.spend / latest.meta_raw_daily.clicks).toFixed(2);
+            const metaAOV = (latest.meta_raw_daily.revenue / latest.meta_raw_daily.purchases).toFixed(2);
+
+            // GA4 Metrics
+            const ga4ConversionRate = ((latest.ga4_raw_daily.purchases / latest.ga4_raw_daily.sessions) * 100).toFixed(2);
+            const ga4AOV = (latest.ga4_raw_daily.revenue / latest.ga4_raw_daily.purchases).toFixed(2);
+            const ga4CAC = (latest.ga4_raw_daily.revenue ? (latest.ga4_raw_daily.revenue / latest.ga4_raw_daily.purchases) : 0).toFixed(2);
+
+            // Shopify Metrics
+            const shopifyRevPerOrder = (latest.shopify_raw_daily.total_revenue / latest.shopify_raw_daily.total_orders).toFixed(2);
+            const shopifyNewCustomerPercent = ((latest.shopify_raw_daily.new_customers / latest.shopify_raw_daily.total_orders) * 100).toFixed(1);
+            const shopifyReturnRate = ((latest.shopify_raw_daily.total_returns / latest.shopify_raw_daily.total_orders) * 100).toFixed(1);
+
+            // Calculate Day-over-Day changes
+            const previousMetaSpend = previous.meta_raw_daily.spend;
+            const previousGA4Revenue = previous.ga4_raw_daily.revenue;
+            const previousShopifyRevenue = previous.shopify_raw_daily.total_revenue;
+
+            const metaSpendChange = (((latest.meta_raw_daily.spend - previousMetaSpend) / previousMetaSpend) * 100).toFixed(1);
+            const ga4RevenueChange = (((latest.ga4_raw_daily.revenue - previousGA4Revenue) / previousGA4Revenue) * 100).toFixed(1);
+            const shopifyRevenueChange = (((latest.shopify_raw_daily.total_revenue - previousShopifyRevenue) / previousShopifyRevenue) * 100).toFixed(1);
+
+            return {
+                meta: { CPM: metaCPM, CTR: metaCTR, CAC: metaCAC, ROAS: metaROAS, CPC: metaCPC, AOV: metaAOV, spendChange: metaSpendChange },
+                ga4: { conversionRate: ga4ConversionRate, AOV: ga4AOV, revenueChange: ga4RevenueChange, bounceRate: latest.ga4_raw_daily.bounce_rate },
+                shopify: { revPerOrder: shopifyRevPerOrder, newCustomerPercent: shopifyNewCustomerPercent, returnRate: shopifyReturnRate, revenueChange: shopifyRevenueChange },
+            };
+        };
+
+        const formatCurrency = (value) => {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+            }).format(value);
+        };
+
+        const formatNumber = (value) => {
+            return new Intl.NumberFormat('en-US').format(Math.round(value));
+        };
+
+        const getChangeColor = (change) => {
+            const num = parseFloat(change);
+            if (num > 0) return 'positive';
+            if (num < 0) return 'negative';
+            return 'neutral';
+        };
+
+        // ==================== COMPONENTS ====================
+
+        const SkeletonOverlay = ({ isLoading }) => {
+            if (!isLoading) return null;
+            return (
+                <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full pulse-skeleton"></div>
+                        <span className="text-slate-700 font-medium">Syncing data from all platforms...</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const ControlBar = ({ dateRange, onDateRangeChange, onRefresh, isRefreshing }) => {
+            return (
+                <div className="sticky top-0 z-40 glass-morphism border-b border-slate-200 shadow-sm">
+                    <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">📊</span>
+                            </div>
+                            <h1 className="text-lg font-semibold text-slate-900">KPI Data Command Center</h1>
+                            <span className="text-xs text-slate-500 ml-2">Multi-Platform Insights</span>
+                        </div>
+
+                        <div className="segment-control">
+                            {['yesterday', '7d', '30d'].map((range) => (
+                                <button
+                                    key={range}
+                                    onClick={() => onDateRangeChange(range)}
+                                    className={`${dateRange === range ? 'active' : ''}`}
+                                >
+                                    {range === 'yesterday' ? 'Yesterday' : range === '7d' ? 'Last 7 Days' : 'Last 30 Days'}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={onRefresh}
+                            disabled={isRefreshing}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+                        >
+                            <svg
+                                className={`w-4 h-4 ${isRefreshing ? 'refresh-spin' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span className="text-sm font-medium">Sync All Platforms</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const MetricCard = ({ label, value, change, platform, accentColor, icon }) => {
+            return (
+                <div className="metric-card card-hover" style={{ '--accent-color': accentColor }}>
+                    <div className="flex items-start justify-between mb-2">
+                        <span className="metric-label">{label}</span>
+                        <span className={`platform-badge badge-${platform}`} style={{ fontSize: '10px' }}>
+                            {platform.toUpperCase()}
+                        </span>
+                    </div>
+                    <div className="metric-value">{value}</div>
+                    <div className={`metric-change ${getChangeColor(change)}`}>
+                        {parseFloat(change) > 0 ? '↑' : parseFloat(change) < 0 ? '↓' : '→'} {Math.abs(change)}%
+                    </div>
+                </div>
+            );
+        };
+
+        const PlatformSection = ({ title, platform, icon, metrics, badgeColor, accentColor, rawData }) => {
+            return (
+                <div className="mb-12">
+                    <div className="flex items-center gap-3 mb-6">
+                        <span className="text-2xl">{icon}</span>
+                        <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+                        <span className={`platform-badge badge-${platform}`} style={{ marginLeft: 'auto' }}>
+                            {platform.toUpperCase()}
+                        </span>
+                    </div>
+
+                    {/* Metric Cards Grid */}
+                    <div className="metric-grid mb-8">
+                        {metrics.map((metric, idx) => (
+                            <MetricCard
+                                key={idx}
+                                label={metric.label}
+                                value={metric.value}
+                                change={metric.change}
+                                platform={platform}
+                                accentColor={accentColor}
+                                icon={metric.icon}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Raw Data Table */}
+                    <div className="chart-container">
+                        <div className="chart-title">Daily Raw Data</div>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        {Object.keys(rawData[0]).map(key => (
+                                            <th key={key}>{key.replace(/_/g, ' ').toUpperCase()}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rawData.slice(-7).reverse().map((row, idx) => (
+                                        <tr key={idx}>
+                                            {Object.values(row).map((val, i) => (
+                                                <td key={i}>
+                                                    {typeof val === 'number' ? (val > 100 && val < 10000 ? formatNumber(val) : val.toFixed(2)) : val}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TrendLineChart = ({ data, title, dataKey, color }) => {
+            const maxValue = Math.max(...data.map(d => d[dataKey]));
+            const width = 100 / data.length;
+
+            return (
+                <div className="chart-container">
+                    <div className="chart-title">{title}</div>
+                    <div className="chart-area">
+                        <svg className="line-chart" preserveAspectRatio="none" viewBox={`0 0 ${data.length * 40} 200`}>
+                            {/* Grid */}
+                            {[0, 1, 2, 3, 4].map(i => (
+                                <line key={`grid-${i}`} x1="0" y1={i * 50} x2={data.length * 40} y2={i * 50} stroke="#e2e8f0" strokeWidth="1" />
+                            ))}
+                            
+                            {/* Line Path */}
+                            {data.length > 1 && (
+                                <polyline
+                                    points={data.map((d, idx) => `${idx * 40},${200 - (d[dataKey] / maxValue) * 200}`).join(' ')}
+                                    fill="none"
+                                    stroke={color}
+                                    strokeWidth="3"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                />
+                            )}
+
+                            {/* Points */}
+                            {data.map((d, idx) => (
+                                <circle
+                                    key={`point-${idx}`}
+                                    cx={idx * 40}
+                                    cy={200 - (d[dataKey] / maxValue) * 200}
+                                    r="4"
+                                    fill={color}
+                                    stroke="white"
+                                    strokeWidth="2"
+                                />
+                            ))}
+                        </svg>
+                    </div>
+                    
+                    {/* X-Axis Labels */}
+                    <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '1rem', fontSize: '12px', color: '#64748b' }}>
+                        {data.map((d, idx) => (
+                            <span key={idx}>{d.date.split('-')[2]}</span>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const ComparisonWidget = ({ title, platforms, values, colors }) => {
+            const maxVal = Math.max(...values);
+
+            return (
+                <div className="chart-container">
+                    <div className="chart-title">{title}</div>
+                    {platforms.map((platform, idx) => (
+                        <div key={idx} className="comparison-bar">
+                            <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', minWidth: '120px' }}>
+                                {platform}
+                            </span>
+                            <div className="comparison-bar-fill">
+                                <span style={{
+                                    background: colors[idx],
+                                    width: `${(values[idx] / maxVal) * 100}%`
+                                }}></span>
+                            </div>
+                            <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', minWidth: '60px', textAlign: 'right' }}>
+                                {formatCurrency(values[idx])}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        // ==================== MAIN APP ====================
+        function DataCommandCenter() {
+            const [dateRange, setDateRange] = useState('7d');
+            const [rawData, setRawData] = useState(generateRawData(7));
+            const [isLoading, setIsLoading] = useState(false);
+
+            const metrics = calculateMetrics(rawData);
+
+            const handleDateRangeChange = (range) => {
+                setDateRange(range);
+                setIsLoading(true);
+                setTimeout(() => {
+                    const daysMap = { yesterday: 1, '7d': 7, '30d': 30 };
+                    setRawData(generateRawData(daysMap[range]));
+                    setIsLoading(false);
+                }, 1200);
+            };
+
+            const handleRefresh = () => {
+                setIsLoading(true);
+                setTimeout(() => {
+                    const daysMap = { yesterday: 1, '7d': 7, '30d': 30 };
+                    setRawData(generateRawData(daysMap[dateRange]));
+                    setIsLoading(false);
+                }, 1200);
+            };
+
+            const latestData = rawData[rawData.length - 1];
+
+            return (
+                <div className="min-h-screen bg-slate-50">
+                    <SkeletonOverlay isLoading={isLoading} />
+                    <ControlBar
+                        dateRange={dateRange}
+                        onDateRangeChange={handleDateRangeChange}
+                        onRefresh={handleRefresh}
+                        isRefreshing={isLoading}
+                    />
+
+                    <div className="max-w-7xl mx-auto px-6 py-12">
+                        {/* Executive Summary */}
+                        <div className="mb-12">
+                            <h2 className="text-2xl font-bold text-slate-900 mb-6">Executive Overview</h2>
+                            <ComparisonWidget
+                                title="Today's Revenue by Source"
+                                platforms={['Meta Ads', 'GA4', 'Shopify Store']}
+                                values={[
+                                    latestData.meta_raw_daily.revenue,
+                                    latestData.ga4_raw_daily.revenue,
+                                    latestData.shopify_raw_daily.total_revenue
+                                ]}
+                                colors={['var(--color-meta)', 'var(--color-ga4)', 'var(--color-shopify)']}
+                            />
+                        </div>
+
+                        {/* Revenue Trends */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+                            <TrendLineChart
+                                data={rawData}
+                                title="Meta Ads Revenue Trend"
+                                dataKey="meta_revenue"
+                                color="var(--color-meta)"
+                            />
+                            <TrendLineChart
+                                data={rawData.map(d => ({ ...d, ga4_revenue: d.ga4_raw_daily.revenue }))}
+                                title="GA4 Revenue Trend"
+                                dataKey="ga4_revenue"
+                                color="var(--color-ga4)"
+                            />
+                            <TrendLineChart
+                                data={rawData}
+                                title="Shopify Revenue Trend"
+                                dataKey="shopify_revenue"
+                                color="var(--color-shopify)"
+                            />
+                        </div>
+
+                        {/* Meta Ads Platform Section */}
+                        <PlatformSection
+                            title="Meta Ads Performance"
+                            platform="meta"
+                            icon="📘"
+                            accentColor="var(--color-meta)"
+                            metrics={[
+                                { label: 'Ad Spend', value: formatCurrency(latestData.meta_raw_daily.spend), change: metrics.meta.spendChange, icon: '💸' },
+                                { label: 'Impressions', value: formatNumber(latestData.meta_raw_daily.impressions), change: '0', icon: '👁️' },
+                                { label: 'CPM', value: `$${metrics.meta.CPM}`, change: '0', icon: '💰' },
+                                { label: 'CTR', value: `${metrics.meta.CTR}%`, change: '0', icon: '🎯' },
+                                { label: 'Purchases', value: formatNumber(latestData.meta_raw_daily.purchases), change: '0', icon: '🛒' },
+                                { label: 'ROAS', value: `${metrics.meta.ROAS}x`, change: '0', icon: '📈' },
+                                { label: 'CAC', value: `$${metrics.meta.CAC}`, change: '0', icon: '👤' },
+                                { label: 'AOV', value: `$${metrics.meta.AOV}`, change: '0', icon: '💎' },
+                            ]}
+                            rawData={rawData.map(d => d.meta_raw_daily)}
+                        />
+
+                        {/* GA4 Platform Section */}
+                        <PlatformSection
+                            title="Google Analytics 4 Performance"
+                            platform="ga4"
+                            icon="📊"
+                            accentColor="var(--color-ga4)"
+                            metrics={[
+                                { label: 'Sessions', value: formatNumber(latestData.ga4_raw_daily.sessions), change: '0', icon: '📱' },
+                                { label: 'Users', value: formatNumber(latestData.ga4_raw_daily.users), change: '0', icon: '👥' },
+                                { label: 'Revenue', value: formatCurrency(latestData.ga4_raw_daily.revenue), change: metrics.ga4.revenueChange, icon: '💵' },
+                                { label: 'Purchases', value: formatNumber(latestData.ga4_raw_daily.purchases), change: '0', icon: '🛍️' },
+                                { label: 'Conv. Rate', value: `${metrics.ga4.conversionRate}%`, change: '0', icon: '🎯' },
+                                { label: 'Bounce Rate', value: `${metrics.ga4.bounceRate}%`, change: '0', icon: '📉' },
+                                { label: 'Add to Cart', value: formatNumber(latestData.ga4_raw_daily.add_to_cart), change: '0', icon: '🛒' },
+                                { label: 'AOV', value: `$${metrics.ga4.AOV}`, change: '0', icon: '💎' },
+                            ]}
+                            rawData={rawData.map(d => d.ga4_raw_daily)}
+                        />
+
+                        {/* Shopify Platform Section */}
+                        <PlatformSection
+                            title="Shopify Store Performance"
+                            platform="shopify"
+                            icon="🏪"
+                            accentColor="var(--color-shopify)"
+                            metrics={[
+                                { label: 'Total Orders', value: formatNumber(latestData.shopify_raw_daily.total_orders), change: '0', icon: '📦' },
+                                { label: 'Revenue', value: formatCurrency(latestData.shopify_raw_daily.total_revenue), change: metrics.shopify.revenueChange, icon: '💰' },
+                                { label: 'Net Revenue', value: formatCurrency(latestData.shopify_raw_daily.net_revenue), change: '0', icon: '💵' },
+                                { label: 'Rev/Order', value: `$${metrics.shopify.revPerOrder}`, change: '0', icon: '📊' },
+                                { label: 'New Customers', value: formatNumber(latestData.shopify_raw_daily.new_customers), change: '0', icon: '🆕' },
+                                { label: 'New Cust %', value: `${metrics.shopify.newCustomerPercent}%`, change: '0', icon: '📈' },
+                                { label: 'Returns', value: formatNumber(latestData.shopify_raw_daily.total_returns), change: '0', icon: '↩️' },
+                                { label: 'Return Rate', value: `${metrics.shopify.returnRate}%`, change: '0', icon: '⚠️' },
+                            ]}
+                            rawData={rawData.map(d => d.shopify_raw_daily)}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        // Render App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<DataCommandCenter />);
+    </script>
+</body>
+</html>

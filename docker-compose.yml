@@ -1,0 +1,178 @@
+# KPI ETL Pipeline - Docker Compose Configuration
+# Orchestrates the application with Redis for job queue
+# Production-ready with health checks, resource limits, and security
+
+services:
+  # ===========================================================================
+  # Redis - Job Queue Backend
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: kpi-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"  # Only expose to localhost for security
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server 
+      --appendonly yes 
+      --maxmemory 256mb 
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 0
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+          cpus: '0.5'
+        reservations:
+          memory: 100M
+    networks:
+      - kpi-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================================================================
+  # KPI ETL Application
+  # ===========================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_VERSION: "20"
+    image: kpi-etl:latest
+    container_name: kpi-etl
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      # Server configuration
+      - NODE_ENV=production
+      - PORT=3001
+      - TZ=${TZ:-Asia/Kolkata}
+      - TRUST_PROXY=true
+      
+      # Security (optional API key)
+      - API_KEY=${API_KEY:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      
+      # Redis configuration
+      - REDIS_URL=redis://redis:6379
+      
+      # Scheduler configuration
+      - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-false}
+      - CRON_SCHEDULE=${CRON_SCHEDULE:-0 2 * * *}
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      
+      # Google Sheets configuration
+      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID:-1HlVbOXTfNJjHCt2fzHz8uCkZjUBHxFPRXB-2mcVNvu8}
+      
+      # Meta configuration
+      - META_ENABLED=${META_ENABLED:-true}
+      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN}
+      - META_AD_ACCOUNT_ID=${META_AD_ACCOUNT_ID}
+      - META_SPREADSHEET_ID=${META_SPREADSHEET_ID}
+      - META_SHEET_NAME=${META_SHEET_NAME:-meta_raw_daily}
+      
+      # GA4 configuration
+      - GA4_ENABLED=${GA4_ENABLED:-true}
+      - GOOGLE_ACCESS_TOKEN=${GOOGLE_ACCESS_TOKEN}
+      - GA4_PROPERTY_ID=${GA4_PROPERTY_ID}
+      - GA4_SPREADSHEET_ID=${GA4_SPREADSHEET_ID}
+      - GA4_SHEET_NAME=${GA4_SHEET_NAME:-Google}
+      
+      # Shopify configuration
+      - SHOPIFY_ENABLED=${SHOPIFY_ENABLED:-true}
+      - SHOPIFY_STORE_DOMAIN=${SHOPIFY_STORE_DOMAIN}
+      - SHOPIFY_ACCESS_TOKEN=${SHOPIFY_ACCESS_TOKEN}
+      - SHOPIFY_SPREADSHEET_ID=${SHOPIFY_SPREADSHEET_ID}
+      - SHOPIFY_SHEET_NAME=${SHOPIFY_SHEET_NAME:-Shopify}
+      
+      # Notification configuration
+      - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - EMAIL_ENABLED=${EMAIL_ENABLED:-false}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - EMAIL_TO=${EMAIL_TO}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      # Mount service account credentials (read-only)
+      - ./n8nworkflows-471200-2d198eaf6e2a.json:/app/n8nworkflows-471200-2d198eaf6e2a.json:ro
+      # Logs persistence
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+    networks:
+      - kpi-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:size=100M
+
+  # ===========================================================================
+  # Redis Commander (Optional - Development Only)
+  # ===========================================================================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: kpi-redis-ui
+    restart: unless-stopped
+    profiles:
+      - dev
+    depends_on:
+      - redis
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    networks:
+      - kpi-network
+
+# ===========================================================================
+# Networks
+# ===========================================================================
+networks:
+  kpi-network:
+    driver: bridge
+
+# ===========================================================================
+# Volumes
+# ===========================================================================
+volumes:
+  redis_data:
+    driver: local
