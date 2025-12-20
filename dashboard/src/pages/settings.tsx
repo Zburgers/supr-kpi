@@ -128,21 +128,21 @@ export function Settings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-gray-400" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-12 h-12 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
             <SettingsIcon className="w-8 h-8" />
             Settings
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-muted-foreground mt-2">
             Manage your account, credentials, and automation settings
           </p>
         </div>
@@ -263,22 +263,22 @@ export function Settings() {
 // Account Section Component
 function AccountSection() {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
+    <div className="bg-card rounded-lg border border-border p-6 space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-4">Account Information</h2>
+        <h2 className="text-xl font-semibold text-foreground mb-4">Account Information</h2>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700">Display Name</label>
-            <div className="mt-1 text-gray-900">John Doe</div>
+            <label className="text-sm font-medium text-muted-foreground">Display Name</label>
+            <div className="mt-1 text-foreground">John Doe</div>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700">Email</label>
-            <div className="mt-1 text-gray-900">john.doe@example.com</div>
+            <label className="text-sm font-medium text-muted-foreground">Email</label>
+            <div className="mt-1 text-foreground">john.doe@example.com</div>
           </div>
         </div>
       </div>
 
-      <div className="pt-6 border-t border-gray-200 space-y-3">
+      <div className="pt-6 border-t border-border space-y-3">
         <Button variant="outline" className="w-full">
           <User className="w-4 h-4 mr-2" />
           Manage Account (Clerk)
@@ -293,7 +293,7 @@ function AccountSection() {
         </Button>
       </div>
 
-      <div className="text-xs text-gray-500 p-3 bg-gray-50 rounded-md">
+      <div className="text-xs text-muted-foreground p-3 bg-secondary/30 rounded-md">
         <strong>Note:</strong> Account management is handled through Clerk. Changes made there will
         be reflected here.
       </div>
@@ -313,7 +313,7 @@ function CredentialsSection({ credentials, onVerify, onEdit, onDelete }: Credent
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Saved Credentials</h2>
+        <h2 className="text-xl font-semibold text-foreground">Saved Credentials</h2>
         <Button>
           <Plus className="w-4 h-4 mr-2" />
           Add Credential
@@ -321,7 +321,7 @@ function CredentialsSection({ credentials, onVerify, onEdit, onDelete }: Credent
       </div>
 
       {credentials.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center text-gray-500">
+        <div className="bg-card rounded-lg border border-border p-12 text-center text-muted-foreground">
           No credentials saved yet
         </div>
       ) : (
@@ -329,12 +329,12 @@ function CredentialsSection({ credentials, onVerify, onEdit, onDelete }: Credent
           {credentials.map((credential) => (
             <div
               key={credential.id}
-              className="bg-white rounded-lg border border-gray-200 p-6"
+              className="bg-card rounded-lg border border-border p-6"
             >
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold">{credential.name}</h3>
-                  <p className="text-sm text-gray-600 capitalize">
+                  <h3 className="text-lg font-semibold text-foreground">{credential.name}</h3>
+                  <p className="text-sm text-muted-foreground capitalize">
                     {SERVICE_LABELS[credential.service]} · {credential.type.replace(/_/g, ' ')}
                   </p>
                 </div>
@@ -352,13 +352,13 @@ function CredentialsSection({ credentials, onVerify, onEdit, onDelete }: Credent
               </div>
 
               {credential.verified_at && (
-                <div className="text-sm text-gray-500 mb-4">
+                <div className="text-sm text-muted-foreground mb-4">
                   Last verified: {new Date(credential.verified_at).toLocaleString()}
                 </div>
               )}
 
               {credential.metadata?.email && (
-                <div className="text-sm text-gray-600 mb-4">
+                <div className="text-sm text-muted-foreground mb-4">
                   Account: {credential.metadata.email}
                 </div>
               )}
@@ -408,8 +408,8 @@ function SheetMappingsSection({ mappings, credentials, onEdit }: SheetMappingsSe
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Sheet Mappings</h2>
-      <p className="text-gray-600">
+      <h2 className="text-xl font-semibold text-foreground">Sheet Mappings</h2>
+      <p className="text-muted-foreground">
         Configure which Google Sheets are used to store data from each service
       </p>
 
@@ -421,25 +421,25 @@ function SheetMappingsSection({ mappings, credentials, onEdit }: SheetMappingsSe
           return (
             <div
               key={service}
-              className="bg-white rounded-lg border border-gray-200 p-6"
+              className="bg-card rounded-lg border border-border p-6"
             >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold">{SERVICE_LABELS[service]}</h3>
+                  <h3 className="text-lg font-semibold text-foreground">{SERVICE_LABELS[service]}</h3>
                   {mapping ? (
                     <div className="mt-2 space-y-1">
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         <span className="font-medium">Spreadsheet:</span> {mapping.spreadsheet_name}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         <span className="font-medium">Sheet:</span> {mapping.sheet_name}
                       </div>
-                      <div className="text-xs text-gray-500 mt-2">
+                      <div className="text-xs text-muted-foreground/70 mt-2">
                         Last updated: {new Date(mapping.updated_at).toLocaleString()}
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 mt-2">No sheet configured</p>
+                    <p className="text-sm text-muted-foreground mt-2">No sheet configured</p>
                   )}
                 </div>
                 <Button
@@ -452,7 +452,7 @@ function SheetMappingsSection({ mappings, credentials, onEdit }: SheetMappingsSe
                 </Button>
               </div>
               {!hasCredential && (
-                <div className="mt-3 text-sm text-amber-600 bg-amber-50 p-2 rounded">
+                <div className="mt-3 text-sm text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded">
                   Configure credentials first
                 </div>
               )}
@@ -475,8 +475,8 @@ function AutomationSection({ schedules, onEdit }: AutomationSectionProps) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Automation & Scheduling</h2>
-      <p className="text-gray-600">
+      <h2 className="text-xl font-semibold text-foreground">Automation & Scheduling</h2>
+      <p className="text-muted-foreground">
         Configure automated sync schedules for each service
       </p>
 
@@ -487,37 +487,37 @@ function AutomationSection({ schedules, onEdit }: AutomationSectionProps) {
           return (
             <div
               key={service}
-              className="bg-white rounded-lg border border-gray-200 p-6"
+              className="bg-card rounded-lg border border-border p-6"
             >
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold">{SERVICE_LABELS[service]}</h3>
+                  <h3 className="text-lg font-semibold text-foreground">{SERVICE_LABELS[service]}</h3>
                   {schedule ? (
                     <div className="mt-2 space-y-1">
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         <span className="font-medium">Schedule:</span> {schedule.cron}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         <span className="font-medium">Status:</span>{' '}
                         {schedule.enabled ? (
-                          <span className="text-green-600">Enabled</span>
+                          <span className="text-green-500">Enabled</span>
                         ) : (
-                          <span className="text-gray-500">Disabled</span>
+                          <span className="text-muted-foreground">Disabled</span>
                         )}
                       </div>
                       {schedule.last_run_at && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground/70">
                           Last run: {new Date(schedule.last_run_at).toLocaleString()}
                         </div>
                       )}
                       {schedule.next_run_at && schedule.enabled && (
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-muted-foreground/70">
                           Next run: {new Date(schedule.next_run_at).toLocaleString()}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 mt-2">No schedule configured</p>
+                    <p className="text-sm text-muted-foreground mt-2">No schedule configured</p>
                   )}
                 </div>
                 <Button variant="outline" size="sm" onClick={() => onEdit(service)}>
