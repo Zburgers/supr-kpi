@@ -1,8 +1,45 @@
 # KPI ETL Pipeline - Docker Compose Configuration
-# Orchestrates the application with Redis for job queue
+# Orchestrates the application with Redis for job queue and PostgreSQL for data
 # Production-ready with health checks, resource limits, and security
 
 services:
+  # ===========================================================================
+  # PostgreSQL - Primary Database with RLS
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: kpi-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"  # Only expose to localhost for security
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-kpi_etl}
+      - POSTGRES_USER=${POSTGRES_USER:-kpi_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro  # Auto-run migrations
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kpi_user} -d ${POSTGRES_DB:-kpi_etl}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 128M
+    networks:
+      - kpi-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # ===========================================================================
   # Redis - Job Queue Backend
   # ===========================================================================
@@ -57,6 +94,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "${PORT:-3001}:3001"
     environment:
@@ -72,6 +111,22 @@ services:
       
       # Redis configuration
       - REDIS_URL=redis://redis:6379
+      
+      # PostgreSQL configuration
+      - DATABASE_URL=postgres://${POSTGRES_USER:-kpi_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kpi_etl}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-kpi_etl}
+      - POSTGRES_USER=${POSTGRES_USER:-kpi_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      
+      # Clerk Authentication
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CLERK_PUBLIC_KEY=${CLERK_PUBLIC_KEY}
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      
+      # Encryption (generate with: openssl rand -base64 32)
+      - MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY}
       
       # Scheduler configuration
       - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-false}
@@ -175,4 +230,6 @@ networks:
 # ===========================================================================
 volumes:
   redis_data:
+    driver: local
+  postgres_data:
     driver: local
