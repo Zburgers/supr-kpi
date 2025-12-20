@@ -45,19 +45,19 @@ function OnboardingContent() {
   // Step 0: Welcome
   if (currentStep === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-2xl w-full bg-white rounded-lg shadow-xl p-8">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-2xl w-full bg-card rounded-xl shadow-xl p-8 border border-border">
           <div className="text-center space-y-6">
             <div className="flex justify-center">
-              <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-12 h-12 text-white" />
+              <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center">
+                <CheckCircle className="w-12 h-12 text-primary-foreground" />
               </div>
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-3">
+              <h1 className="text-4xl font-bold text-foreground mb-3">
                 Welcome to KPI Dashboard
               </h1>
-              <p className="text-xl text-gray-600">
+              <p className="text-xl text-muted-foreground">
                 Let's set up your data sources to get started
               </p>
             </div>
@@ -65,10 +65,10 @@ function OnboardingContent() {
               {SERVICES.map((service) => (
                 <div
                   key={service}
-                  className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors"
+                  className="p-4 border border-border rounded-lg hover:border-primary transition-colors bg-secondary/30"
                 >
-                  <div className="font-medium text-gray-900">{SERVICE_LABELS[service]}</div>
-                  <div className="text-sm text-gray-500 mt-1">
+                  <div className="font-medium text-foreground">{SERVICE_LABELS[service]}</div>
+                  <div className="text-sm text-muted-foreground mt-1">
                     Connect your {SERVICE_LABELS[service]} account
                   </div>
                 </div>
@@ -101,7 +101,7 @@ function OnboardingContent() {
 
     if (currentService === service) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 py-12">
+        <div className="min-h-screen bg-background p-4 py-12">
           <ServiceSetupWizard
             service={service}
             onComplete={handleServiceComplete}
@@ -112,27 +112,27 @@ function OnboardingContent() {
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-2xl w-full bg-white rounded-lg shadow-xl p-8">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-2xl w-full bg-card rounded-xl shadow-xl p-8 border border-border">
           <div className="space-y-6">
             <div>
-              <div className="text-sm text-gray-500 mb-2">
+              <div className="text-sm text-muted-foreground mb-2">
                 Step {currentStep} of {SERVICES.length + 1}
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              <h2 className="text-3xl font-bold text-foreground mb-2">
                 {SERVICE_LABELS[service]}
               </h2>
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 Connect your {SERVICE_LABELS[service]} account to import data
               </p>
             </div>
 
             {completedServices.includes(service) && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-md flex items-center gap-3">
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-md flex items-center gap-3">
                 <CheckCircle className="w-6 h-6 text-green-500" />
                 <div>
-                  <div className="font-medium text-green-900">Already Configured</div>
-                  <div className="text-sm text-green-700">
+                  <div className="font-medium text-green-400">Already Configured</div>
+                  <div className="text-sm text-green-500/80">
                     This service has been set up successfully
                   </div>
                 </div>
@@ -158,7 +158,7 @@ function OnboardingContent() {
             </div>
 
             <div className="pt-4">
-              <div className="text-sm text-gray-600 mb-2">Progress</div>
+              <div className="text-sm text-muted-foreground mb-2">Progress</div>
               <div className="flex gap-2">
                 {SERVICES.map((svc, idx) => (
                   <div
@@ -167,8 +167,8 @@ function OnboardingContent() {
                       idx < serviceIndex
                         ? 'bg-green-500'
                         : idx === serviceIndex
-                        ? 'bg-blue-500'
-                        : 'bg-gray-200'
+                        ? 'bg-primary'
+                        : 'bg-muted'
                     }`}
                   />
                 ))}
@@ -182,8 +182,8 @@ function OnboardingContent() {
 
   // Final Step: Complete
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-2xl w-full bg-white rounded-lg shadow-xl p-8">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="max-w-2xl w-full bg-card rounded-xl shadow-xl p-8 border border-border">
         <div className="text-center space-y-6">
           <div className="flex justify-center">
             <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center">
@@ -191,32 +191,32 @@ function OnboardingContent() {
             </div>
           </div>
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">
+            <h2 className="text-3xl font-bold text-foreground mb-3">
               You're All Set!
             </h2>
-            <p className="text-xl text-gray-600">
+            <p className="text-xl text-muted-foreground">
               Your dashboard is ready to use
             </p>
           </div>
 
-          <div className="bg-gray-50 rounded-lg p-6">
-            <div className="text-sm font-medium text-gray-700 mb-3">
+          <div className="bg-secondary/30 rounded-lg p-6">
+            <div className="text-sm font-medium text-muted-foreground mb-3">
               Configured Services:
             </div>
             <div className="space-y-2">
               {SERVICES.map((service) => (
                 <div
                   key={service}
-                  className="flex items-center justify-between p-3 bg-white rounded border border-gray-200"
+                  className="flex items-center justify-between p-3 bg-card rounded border border-border"
                 >
-                  <span className="font-medium">{SERVICE_LABELS[service]}</span>
+                  <span className="font-medium text-foreground">{SERVICE_LABELS[service]}</span>
                   {completedServices.includes(service) ? (
-                    <span className="flex items-center gap-1 text-green-600 text-sm">
+                    <span className="flex items-center gap-1 text-green-500 text-sm">
                       <CheckCircle className="w-4 h-4" />
                       Configured
                     </span>
                   ) : (
-                    <span className="text-gray-400 text-sm">Not configured</span>
+                    <span className="text-muted-foreground text-sm">Not configured</span>
                   )}
                 </div>
               ))}

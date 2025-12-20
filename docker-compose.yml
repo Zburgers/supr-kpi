@@ -170,8 +170,6 @@ services:
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      # Mount service account credentials (read-only)
-      - ./n8nworkflows-471200-2d198eaf6e2a.json:/app/n8nworkflows-471200-2d198eaf6e2a.json:ro
       # Logs persistence
       - ./logs:/app/logs
     healthcheck:

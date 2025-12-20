@@ -85,7 +85,7 @@ export function Dashboard() {
   }, [meta, ga4, shopify])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen w-full bg-background">
       <Header
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
@@ -94,7 +94,7 @@ export function Dashboard() {
         lastUpdated={lastSynced}
       />
 
-      <main className="container px-4 py-6 md:px-6 lg:py-8">
+      <main className="w-full max-w-7xl mx-auto px-4 py-6 md:px-6 lg:px-8 lg:py-8">
         {/* Error Display */}
         {error && (
           <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20">

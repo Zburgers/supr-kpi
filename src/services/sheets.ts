@@ -142,9 +142,13 @@ class SheetsService {
   /**
    * Initialize authentication with service account
    * Must be called before any sheet operations
+   * 
+   * Credentials are loaded from environment variables ONLY - no hardcoded file paths.
+   * For production, credentials should be stored encrypted in the database
+   * and passed via GOOGLE_SERVICE_ACCOUNT_JSON environment variable.
    *
    * @returns {Promise<void>}
-   * @throws {Error} If service account file not found or invalid
+   * @throws {Error} If service account credentials not found or invalid
    */
   async initialize(): Promise<void> {
     try {
@@ -152,14 +156,16 @@ class SheetsService {
         return;
       }
 
+      // Load credentials from environment ONLY - no hardcoded paths
       const inlineJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
       const inlineJsonBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
+      
+      // Optional: load from file specified in env (for local development)
       const serviceAccountPath =
         process.env.GOOGLE_SERVICE_ACCOUNT_PATH ||
-        process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-        path.join(__dirname, "../../n8nworkflows-471200-2d198eaf6e2a.json");
+        process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-      let serviceAccountRaw: string;
+      let serviceAccountRaw: string | null = null;
 
       if (inlineJson) {
         serviceAccountRaw = inlineJson;
@@ -167,21 +173,34 @@ class SheetsService {
         serviceAccountRaw = Buffer.from(inlineJsonBase64, "base64").toString(
           "utf-8"
         );
-      } else {
+      } else if (serviceAccountPath) {
+        // Only check file if path is explicitly provided via environment
         if (!fs.existsSync(serviceAccountPath)) {
           throw new Error(
-            `Service account file not found at ${serviceAccountPath}`
+            `Service account file not found at ${serviceAccountPath}. ` +
+            `Set GOOGLE_SERVICE_ACCOUNT_JSON environment variable with the service account JSON, ` +
+            `or ensure the file exists at the path specified in GOOGLE_SERVICE_ACCOUNT_PATH.`
           );
         }
 
         const stats = fs.statSync(serviceAccountPath);
         if (stats.isDirectory()) {
           throw new Error(
-            `Service account path points to a directory: ${serviceAccountPath}`
+            `Service account path points to a directory: ${serviceAccountPath}. ` +
+            `Please provide the path to a JSON file, not a directory.`
           );
         }
 
         serviceAccountRaw = fs.readFileSync(serviceAccountPath, "utf-8");
+      }
+      
+      if (!serviceAccountRaw) {
+        throw new Error(
+          `Google Sheets service account credentials not configured. ` +
+          `Please set one of: GOOGLE_SERVICE_ACCOUNT_JSON (inline JSON), ` +
+          `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 (base64 encoded), ` +
+          `or GOOGLE_SERVICE_ACCOUNT_PATH (file path).`
+        );
       }
 
       const serviceAccount = JSON.parse(serviceAccountRaw);
