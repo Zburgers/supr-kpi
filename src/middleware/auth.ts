@@ -1,59 +1,32 @@
 /**
- * JWT Authentication Middleware
- * Verifies JWT token from Clerk and attaches user context
- * 
+ * Clerk Authentication Middleware
+ * Uses Clerk's official server SDK for JWT verification
+ *
  * Security:
- * - Validates JWT signature using Clerk public key
+ * - Validates JWT signature using Clerk's JWKS endpoint
  * - Extracts Clerk user ID from 'sub' claim
  * - Queries database to get internal user record
  * - Returns 401 for missing/invalid tokens
  * - Sets RLS context (app.current_user_id) for database queries
  */
 
+import { clerkClient, verifyToken } from '@clerk/clerk-sdk-node';
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import { getUserByClerkId, getOrCreateUser } from '../lib/database.js';
 import { logger } from '../lib/logger.js';
+
 // Express Request type augmentation is in src/types/express.d.ts
 
-/**
- * JWT payload from Clerk
- */
-interface ClerkJWTPayload {
-  sub: string; // Clerk user ID
-  email?: string;
-  iat?: number;
-  exp?: number;
-}
-
-/**
- * Get Clerk public key for JWT verification
- * In production, this should be cached and rotated periodically
- */
-function getClerkPublicKey(): string {
-  const key = process.env.CLERK_PUBLIC_KEY;
-  if (!key) {
-    throw new Error('CLERK_PUBLIC_KEY not configured');
-  }
-  return key;
-}
-
-/**
- * Verify and decode JWT token
- */
-function verifyToken(token: string): ClerkJWTPayload {
-  try {
-    const publicKey = getClerkPublicKey();
-    const decoded = jwt.verify(token, publicKey, {
-      algorithms: ['RS256'],
-    });
-    return decoded as ClerkJWTPayload;
-  } catch (err) {
-    const error = err as Error;
-    logger.debug('JWT verification failed', {
-      error: error.message || 'Unknown error',
-    });
-    throw new Error('Invalid token');
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        userId: number;
+        clerkId: string;
+        email: string;
+        status: string;
+      };
+    }
   }
 }
 
@@ -79,10 +52,26 @@ export async function authenticate(
 
     const token = authHeader.substring(7); // Remove "Bearer " prefix
 
-    // Verify token
-    const payload = verifyToken(token);
+    // Verify token using Clerk SDK
+    let session;
+    try {
+      // For verifying JWT tokens from the Authorization header, use the verifyToken function
+      session = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY,
+        issuer: process.env.CLERK_ISSUER || undefined
+      } as any);
+    } catch (err) {
+      logger.debug('JWT verification failed', {
+        error: err instanceof Error ? err.message : 'Unknown error',
+      });
+      res.status(401).json({
+        error: 'Invalid token',
+        code: 'INVALID_TOKEN',
+      });
+      return;
+    }
 
-    if (!payload.sub) {
+    if (!session || !session.sub) {
       res.status(401).json({
         error: 'Invalid token - missing user ID',
         code: 'INVALID_TOKEN',
@@ -91,12 +80,16 @@ export async function authenticate(
     }
 
     // Get or create user in database
-    let user = await getUserByClerkId(payload.sub);
+    let user = await getUserByClerkId(session.sub);
 
     if (!user) {
       // User not in database, create entry
-      const email = payload.email || `${payload.sub}@clerk.internal`;
-      user = await getOrCreateUser(payload.sub, email);
+      // Get user details from Clerk to get email
+      const clerkUser = await clerkClient.users.getUser(session.sub);
+      const email = clerkUser.emailAddresses[0]?.emailAddress || `${session.sub}@clerk.internal`;
+      const name = clerkUser.firstName ? `${clerkUser.firstName} ${clerkUser.lastName || ''}`.trim() : undefined;
+
+      user = await getOrCreateUser(session.sub, email, name);
     }
 
     // Attach user to request (matches UserContext interface)
@@ -104,7 +97,7 @@ export async function authenticate(
       userId: user.id,
       clerkId: user.clerk_id,
       email: user.email,
-      status: 'active', // Default status for authenticated users
+      status: user.status || 'active', // Default status for authenticated users
     };
 
     logger.debug('User authenticated', {
@@ -143,21 +136,32 @@ export async function optionalAuth(
     }
 
     const token = authHeader.substring(7);
-    const payload = verifyToken(token);
+    let session;
 
-    if (!payload.sub) {
+    try {
+      session = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY,
+        issuer: process.env.CLERK_ISSUER || undefined
+      } as any);
+    } catch {
+      // Token verification failed, continue without user
+      next();
+      return;
+    }
+
+    if (!session || !session.sub) {
       // Invalid token, continue without user
       next();
       return;
     }
 
-    const user = await getUserByClerkId(payload.sub);
+    const user = await getUserByClerkId(session.sub);
     if (user) {
       req.user = {
         userId: user.id,
         clerkId: user.clerk_id,
         email: user.email,
-        status: 'active',
+        status: user.status || 'active',
       };
     }
 
