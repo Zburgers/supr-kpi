@@ -35,9 +35,18 @@ function now(): string {
 
 /**
  * Logger class with structured output
+ * Can be instantiated with a component name for contextualized logging
  */
 class Logger {
   private context: Record<string, unknown> = {};
+  private componentName?: string;
+
+  constructor(componentName?: string) {
+    if (componentName) {
+      this.componentName = componentName;
+      this.context = { component: componentName };
+    }
+  }
 
   /**
    * Create a child logger with additional context
