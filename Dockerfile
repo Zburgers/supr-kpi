@@ -12,7 +12,7 @@ FROM node:${NODE_VERSION}-alpine AS dashboard-deps
 WORKDIR /app/dashboard
 
 COPY dashboard/package*.json ./
-RUN npm ci --prefer-offline
+RUN if [ -f package-lock.json ]; then npm ci --prefer-offline; else npm install; fi
 
 FROM node:${NODE_VERSION}-alpine AS dashboard-build
 
@@ -35,7 +35,7 @@ RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 
 # Install all dependencies (including dev for build)
-RUN npm ci --prefer-offline
+RUN if [ -f package-lock.json ]; then npm ci --prefer-offline; else npm install; fi
 
 # ============================================================================
 # Stage 2: Build
@@ -77,7 +77,7 @@ ENV NODE_ENV=production \
 
 # Install production dependencies only
 COPY package*.json ./
-RUN npm ci --only=production --prefer-offline && \
+RUN if [ -f package-lock.json ]; then npm ci --only=production --prefer-offline; else npm install --only=production; fi && \
     npm cache clean --force && \
     rm -rf /root/.npm /tmp/*
 
