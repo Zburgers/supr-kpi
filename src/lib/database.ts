@@ -29,7 +29,7 @@ function getPoolConfig() {
     database: process.env.DB_NAME || 'kpi_etl',
     max: parseInt(process.env.DB_POOL_SIZE || '20', 10),
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 10000, // 10 seconds for Docker container communication
   };
 }
 
@@ -80,34 +80,40 @@ export async function closeDatabase(): Promise<void> {
 
 /**
  * Initialize database schema (idempotent)
- * Creates all tables with RLS enabled
+ * Creates all tables with RLS enabled based on the credential system design
  */
 export async function initializeSchema(): Promise<void> {
   const client = await getPool().connect();
-  
+
   try {
     await client.query('BEGIN');
 
-    // Create users table (if not exists)
+    // Create users table (if not exists) - links Clerk user IDs to local records
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         clerk_id VARCHAR(255) UNIQUE NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
+        name VARCHAR(255),
+        status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'deleted')),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      COMMENT ON COLUMN users.clerk_id IS 'Unique identifier from Clerk';
+      COMMENT ON COLUMN users.status IS 'active, suspended, or deleted';
+
       CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
     `);
 
-    // Create credentials table
+    // Create credentials table - stores encrypted service credentials
     await client.query(`
       CREATE TABLE IF NOT EXISTS credentials (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        service VARCHAR(50) NOT NULL,
+        service VARCHAR(50) NOT NULL CHECK (service IN ('google_sheets', 'meta', 'ga4', 'shopify')),
         name VARCHAR(255) NOT NULL,
         encrypted_data TEXT NOT NULL,
         verified BOOLEAN DEFAULT FALSE,
@@ -117,6 +123,13 @@ export async function initializeSchema(): Promise<void> {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         deleted_at TIMESTAMP
       );
+
+      COMMENT ON COLUMN credentials.name IS 'User-friendly name (e.g. "My Google Account")';
+      COMMENT ON COLUMN credentials.encrypted_data IS 'AES-256-GCM encrypted credential JSON';
+      COMMENT ON COLUMN credentials.verified IS 'True if credential has been tested';
+      COMMENT ON COLUMN credentials.verified_at IS 'When credential was last verified';
+      COMMENT ON COLUMN credentials.expires_at IS 'When credential expires (if applicable)';
+      COMMENT ON COLUMN credentials.deleted_at IS 'Soft delete timestamp';
 
       CREATE INDEX IF NOT EXISTS idx_credentials_user_id ON credentials(user_id);
       CREATE INDEX IF NOT EXISTS idx_credentials_service ON credentials(service);
@@ -133,12 +146,12 @@ export async function initializeSchema(): Promise<void> {
         WITH CHECK (user_id = current_setting('app.current_user_id')::INTEGER);
     `);
 
-    // Create service_configs table
+    // Create service_configs table - tracks enabled services per user
     await client.query(`
       CREATE TABLE IF NOT EXISTS service_configs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        service VARCHAR(50) NOT NULL,
+        service VARCHAR(50) NOT NULL CHECK (service IN ('google_sheets', 'meta', 'ga4', 'shopify')),
         credential_id INTEGER NOT NULL REFERENCES credentials(id) ON DELETE CASCADE,
         enabled BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -160,12 +173,12 @@ export async function initializeSchema(): Promise<void> {
         WITH CHECK (user_id = current_setting('app.current_user_id')::INTEGER);
     `);
 
-    // Create sheet_mappings table
+    // Create sheet_mappings table - maps services to Google Sheets locations
     await client.query(`
       CREATE TABLE IF NOT EXISTS sheet_mappings (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        service VARCHAR(50) NOT NULL,
+        service VARCHAR(50) NOT NULL CHECK (service IN ('google_sheets', 'meta', 'ga4', 'shopify')),
         spreadsheet_id VARCHAR(255) NOT NULL,
         sheet_name VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -187,18 +200,23 @@ export async function initializeSchema(): Promise<void> {
         WITH CHECK (user_id = current_setting('app.current_user_id')::INTEGER);
     `);
 
-    // Create audit_logs table
+    // Create audit_logs table - comprehensive audit trail
     await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         action VARCHAR(50) NOT NULL,
         service VARCHAR(50),
-        status VARCHAR(50) NOT NULL,
+        status VARCHAR(50) NOT NULL CHECK (status IN ('success', 'failure', 'partial')) DEFAULT 'success',
         error_message TEXT,
         metadata JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      COMMENT ON COLUMN audit_logs.action IS 'Operation: credential_saved, credential_verified, etc.';
+      COMMENT ON COLUMN audit_logs.service IS 'Service involved (if applicable)';
+      COMMENT ON COLUMN audit_logs.error_message IS 'Error details (never credential data)';
+      COMMENT ON COLUMN audit_logs.metadata IS 'Additional context (sanitized)';
 
       CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
@@ -212,6 +230,16 @@ export async function initializeSchema(): Promise<void> {
       DROP POLICY IF EXISTS audit_logs_user_isolation ON audit_logs;
       CREATE POLICY audit_logs_user_isolation ON audit_logs
         USING (user_id = current_setting('app.current_user_id')::INTEGER);
+    `);
+
+    // Create helper function to set RLS context
+    await client.query(`
+      CREATE OR REPLACE FUNCTION set_user_context(user_id INTEGER)
+      RETURNS void AS $$
+      BEGIN
+        PERFORM set_config('app.current_user_id', user_id::text, false);
+      END;
+      $$ LANGUAGE plpgsql;
     `);
 
     await client.query('COMMIT');
@@ -290,16 +318,17 @@ export async function executeTransaction<T>(
  */
 export async function getOrCreateUser(
   clerkId: string,
-  email: string
-): Promise<{ id: number; clerk_id: string; email: string }> {
+  email: string,
+  name?: string
+): Promise<{ id: number; clerk_id: string; email: string; name?: string }> {
   const result = await executeQuery(
     `
-    INSERT INTO users (clerk_id, email)
-    VALUES ($1, $2)
-    ON CONFLICT (clerk_id) DO UPDATE SET email = $2
-    RETURNING id, clerk_id, email;
+    INSERT INTO users (clerk_id, email, name)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (clerk_id) DO UPDATE SET email = $2, name = COALESCE($3, users.name)
+    RETURNING id, clerk_id, email, name;
     `,
-    [clerkId, email]
+    [clerkId, email, name || null]
   );
 
   if (result.rows.length === 0) {
