@@ -788,17 +788,73 @@ async function startServer(): Promise<void> {
     console.log(`📊 Open http://localhost:${PORT} in browser`);
     console.log('='.repeat(60) + '\n');
 
-    console.log('📡 API Endpoints:');
-    console.log('   Health:      GET  /api/health');
-    console.log('   Credentials: POST /api/credentials/save');
-    console.log('   Credentials: GET  /api/credentials/list');
-    console.log('   Services:    GET  /api/services');
-    console.log('   Sync All:    POST /api/v1/sync/all');
-    console.log('   Sync Meta:   POST /api/v1/sync/meta');
-    console.log('   Sync GA4:    POST /api/v1/sync/ga4');
-    console.log('   Sync Shop:   POST /api/v1/sync/shopify');
-    console.log('   Jobs:        GET  /api/v1/jobs/:jobId');
-    console.log('   Scheduler:   GET  /api/v1/scheduler/status');
+    console.log('📡 API ENDPOINTS BY MODULE:');
+    console.log('');
+
+    console.log('🔒 Authentication & Authorization:');
+    console.log('   Health Check:              GET  /api/health');
+    console.log('   Initialize:                GET  /api/init');
+
+    console.log('');
+    console.log('🔐 Credential Management:');
+    console.log('   Save Credential:           POST /api/credentials/save');
+    console.log('   List Credentials:          GET  /api/credentials/list');
+    console.log('   Get Credential:            GET  /api/credentials/:credentialId');
+    console.log('   Update Credential:         PUT  /api/credentials/:credentialId');
+    console.log('   Delete Credential:         DELETE /api/credentials/:credentialId');
+    console.log('   Verify Credential:         POST /api/credentials/:credentialId/verify');
+    console.log('   Verify Status:             GET  /api/credentials/:credentialId/verify-status');
+
+    console.log('');
+    console.log('⚙️  Service Configuration:');
+    console.log('   Enable Service:            POST /api/services/:serviceName/enable');
+    console.log('   Disable Service:           POST /api/services/:serviceName/disable');
+    console.log('   List Services:             GET  /api/services');
+
+    console.log('');
+    console.log('🗺️  Sheet Mappings:');
+    console.log('   Set Sheet Mapping:         POST /api/sheet-mappings/set');
+    console.log('   List Sheet Mappings:       GET  /api/sheet-mappings');
+
+    console.log('');
+    console.log('🔄 Sync Operations (v1):');
+    console.log('   Sync All Sources:          POST /api/v1/sync/all');
+    console.log('   Sync Meta:                 POST /api/v1/sync/meta');
+    console.log('   Sync GA4:                  POST /api/v1/sync/ga4');
+    console.log('   Sync Shopify:              POST /api/v1/sync/shopify');
+    console.log('   Direct Meta Sync:          POST /api/v1/sync/meta/direct');
+    console.log('   Direct GA4 Sync:           POST /api/v1/sync/ga4/direct');
+    console.log('   Direct Shopify Sync:       POST /api/v1/sync/shopify/direct');
+
+    console.log('');
+    console.log('📋 Job Management:');
+    console.log('   Get Job Status:            GET  /api/v1/jobs/:jobId');
+    console.log('   Queue Stats:               GET  /api/v1/queue/stats');
+
+    console.log('');
+    console.log('⏰ Scheduler:');
+    console.log('   Scheduler Status:          GET  /api/v1/scheduler/status');
+    console.log('   Start Scheduler:           POST /api/v1/scheduler/start');
+    console.log('   Stop Scheduler:            POST /api/v1/scheduler/stop');
+    console.log('   Trigger Manual Sync:       POST /api/v1/scheduler/trigger');
+
+    console.log('');
+    console.log('💬 Notifications:');
+    console.log('   Test Notifications:        POST /api/v1/notifications/test');
+
+    console.log('');
+    console.log('📊 Legacy Google Sheets:');
+    console.log('   List Spreadsheets:         GET  /api/spreadsheets');
+    console.log('   Get Sheet Names:           GET  /api/sheets/:spreadsheetId');
+    console.log('   Read Sheet Data:           GET  /api/data/:spreadsheetId/:sheetName');
+    console.log('   Read Raw Sheet Values:     GET  /api/data/raw/:spreadsheetId/:sheetName');
+
+    console.log('');
+    console.log('🔄 Legacy Sync Operations:');
+    console.log('   Legacy Meta Fetch:         POST /api/meta/fetch');
+    console.log('   Legacy Shopify Fetch:      POST /api/shopify/fetch');
+    console.log('   Legacy GA Fetch:           POST /api/google/fetch');
+
     console.log('');
   });
 }
