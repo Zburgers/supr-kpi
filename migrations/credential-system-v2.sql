@@ -20,11 +20,13 @@
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
-  clerk_id VARCHAR(255) UNIQUE NOT NULL COMMENT 'Unique identifier from Clerk',
+  clerk_id VARCHAR(255) UNIQUE NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+COMMENT ON COLUMN users.clerk_id IS 'Unique identifier from Clerk';
 
 CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -39,15 +41,22 @@ CREATE TABLE IF NOT EXISTS credentials (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   service VARCHAR(50) NOT NULL CHECK (service IN ('google_sheets', 'meta', 'ga4', 'shopify')),
-  name VARCHAR(255) NOT NULL COMMENT 'User-friendly name (e.g. "My Google Account")',
-  encrypted_data TEXT NOT NULL COMMENT 'AES-256-GCM encrypted credential JSON',
-  verified BOOLEAN DEFAULT FALSE COMMENT 'True if credential has been tested',
-  verified_at TIMESTAMP COMMENT 'When credential was last verified',
-  expires_at TIMESTAMP COMMENT 'When credential expires (if applicable)',
+  name VARCHAR(255) NOT NULL,
+  encrypted_data TEXT NOT NULL,
+  verified BOOLEAN DEFAULT FALSE,
+  verified_at TIMESTAMP,
+  expires_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TIMESTAMP COMMENT 'Soft delete timestamp'
+  deleted_at TIMESTAMP
 );
+
+COMMENT ON COLUMN credentials.name IS 'User-friendly name (e.g. "My Google Account")';
+COMMENT ON COLUMN credentials.encrypted_data IS 'AES-256-GCM encrypted credential JSON';
+COMMENT ON COLUMN credentials.verified IS 'True if credential has been tested';
+COMMENT ON COLUMN credentials.verified_at IS 'When credential was last verified';
+COMMENT ON COLUMN credentials.expires_at IS 'When credential expires (if applicable)';
+COMMENT ON COLUMN credentials.deleted_at IS 'Soft delete timestamp';
 
 CREATE INDEX IF NOT EXISTS idx_credentials_user_id ON credentials(user_id);
 CREATE INDEX IF NOT EXISTS idx_credentials_service ON credentials(service);
@@ -133,13 +142,18 @@ CREATE POLICY sheet_mappings_user_isolation ON sheet_mappings
 CREATE TABLE IF NOT EXISTS audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  action VARCHAR(50) NOT NULL COMMENT 'Operation: credential_saved, credential_verified, etc.',
-  service VARCHAR(50) COMMENT 'Service involved (if applicable)',
+  action VARCHAR(50) NOT NULL,
+  service VARCHAR(50),
   status VARCHAR(50) NOT NULL CHECK (status IN ('success', 'failure', 'partial')) DEFAULT 'success',
-  error_message TEXT COMMENT 'Error details (never credential data)',
-  metadata JSONB COMMENT 'Additional context (sanitized)',
+  error_message TEXT,
+  metadata JSONB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+COMMENT ON COLUMN audit_logs.action IS 'Operation: credential_saved, credential_verified, etc.';
+COMMENT ON COLUMN audit_logs.service IS 'Service involved (if applicable)';
+COMMENT ON COLUMN audit_logs.error_message IS 'Error details (never credential data)';
+COMMENT ON COLUMN audit_logs.metadata IS 'Additional context (sanitized)';
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
