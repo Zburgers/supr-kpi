@@ -144,7 +144,7 @@ export function securityHeaders(): RequestHandler {
     // Content Security Policy (adjust as needed)
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://analyticsdata.googleapis.com https://sheets.googleapis.com https://graph.facebook.com https://*.myshopify.com;"
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://cdn.jsdelivr.net/npm/@clerk/; style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://cdn.jsdelivr.net/npm/@clerk/; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.clerk.accounts.dev https://clerk-telemetry.com https://analyticsdata.googleapis.com https://sheets.googleapis.com https://graph.facebook.com https://*.myshopify.com; worker-src 'self' blob:; child-src 'self' blob:;"
     );
 
     // Permissions Policy
