@@ -3,6 +3,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { ArrowRight, CheckCircle, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ServiceSetupWizard } from '@/components/onboarding/service-setup-wizard';
@@ -21,6 +22,7 @@ const SERVICE_LABELS: Record<ServiceType, string> = {
 
 function OnboardingContent() {
   const { currentStep, completedServices, nextStep } = useOnboarding();
+  const { user } = useUser();
   const [currentService, setCurrentService] = useState<ServiceType | null>(null);
 
   const handleServiceComplete = useCallback(() => {
@@ -37,10 +39,23 @@ function OnboardingContent() {
     setCurrentService(service);
   }, []);
 
-  const handleFinish = useCallback(() => {
+  const handleFinish = useCallback(async () => {
+    // Update user's onboarding status in Clerk
+    if (user) {
+      try {
+        await user.update({
+          publicMetadata: {
+            ...user.publicMetadata,
+            onboardingComplete: true,
+          }
+        } as any); // Type assertion to handle Clerk's typing
+      } catch (error) {
+        console.error('Failed to update onboarding status:', error);
+      }
+    }
     // Navigate to dashboard
     navigate('/');
-  }, []);
+  }, [user]);
 
   // Step 0: Welcome
   if (currentStep === 0) {
