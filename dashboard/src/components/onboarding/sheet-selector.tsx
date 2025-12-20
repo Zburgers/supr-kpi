@@ -94,7 +94,7 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600">
+        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
           {error}
         </div>
       )}
@@ -102,16 +102,16 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
       <div className="space-y-2">
         <Label htmlFor="spreadsheet">Select Spreadsheet</Label>
         {loadingSpreadsheets ? (
-          <div className="flex items-center gap-2 p-3 border border-gray-200 rounded-md">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm text-gray-600">Loading spreadsheets...</span>
+          <div className="flex items-center gap-2 p-3 border border-border rounded-md bg-card text-foreground">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Loading spreadsheets...</span>
           </div>
         ) : (
           <select
             id="spreadsheet"
             value={selectedSpreadsheetId}
             onChange={(e) => setSelectedSpreadsheetId(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 rounded-md border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             disabled={isLoading}
           >
             <option value="">-- Select a spreadsheet --</option>
@@ -123,7 +123,7 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
           </select>
         )}
         {spreadsheets.length === 0 && !loadingSpreadsheets && (
-          <p className="text-sm text-gray-500 flex items-center gap-2">
+          <p className="text-sm text-muted-foreground flex items-center gap-2">
             <FileSpreadsheet className="w-4 h-4" />
             No spreadsheets found. Make sure your credential has access to Google Sheets.
           </p>
@@ -134,16 +134,16 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
         <div className="space-y-2">
           <Label htmlFor="sheet">Select Sheet</Label>
           {loadingSheets ? (
-            <div className="flex items-center gap-2 p-3 border border-gray-200 rounded-md">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm text-gray-600">Loading sheets...</span>
+            <div className="flex items-center gap-2 p-3 border border-border rounded-md bg-card text-foreground">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Loading sheets...</span>
             </div>
           ) : (
             <select
               id="sheet"
               value={selectedSheetName}
               onChange={(e) => setSelectedSheetName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 rounded-md border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               disabled={isLoading}
             >
               <option value="">-- Select a sheet --</option>
@@ -155,7 +155,7 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
             </select>
           )}
           {sheets.length === 0 && !loadingSheets && (
-            <p className="text-sm text-gray-500 flex items-center gap-2">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
               <Sheet className="w-4 h-4" />
               No sheets found in this spreadsheet.
             </p>
@@ -164,9 +164,9 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
       )}
 
       {selectedSpreadsheetId && selectedSheetName && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-          <div className="text-sm font-medium text-blue-900">Selected:</div>
-          <div className="text-sm text-blue-700 mt-1">
+        <div className="p-3 bg-primary/10 border border-primary/30 rounded-md">
+          <div className="text-sm font-medium text-primary">Selected:</div>
+          <div className="text-sm text-primary mt-1">
             {spreadsheets.find(s => s.id === selectedSpreadsheetId)?.name} → {selectedSheetName}
           </div>
         </div>

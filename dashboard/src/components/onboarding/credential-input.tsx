@@ -118,7 +118,7 @@ export function CredentialInput({ service, onSave, onError, isLoading }: Credent
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 rounded-md border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           placeholder={`My ${service} Account`}
           disabled={isLoading}
         />
@@ -130,7 +130,7 @@ export function CredentialInput({ service, onSave, onError, isLoading }: Credent
           id="credential-type"
           value={type}
           onChange={(e) => setType(e.target.value as CredentialType)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 rounded-md border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           disabled={isLoading}
         >
           <option value="service_account">Service Account (JSON)</option>
@@ -173,12 +173,12 @@ export function CredentialInput({ service, onSave, onError, isLoading }: Credent
               id="credentials"
               value={credentials}
               onChange={(e) => setCredentials(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm min-h-[200px]"
+              className="w-full px-3 py-2 rounded-md border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm min-h-[200px]"
               placeholder={getPlaceholder()}
               disabled={isLoading}
             />
             {credentials && (
-              <div className="absolute bottom-2 right-2 text-xs text-gray-500">
+              <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
                 {credentials.length} characters
               </div>
             )}
@@ -206,7 +206,7 @@ export function CredentialInput({ service, onSave, onError, isLoading }: Credent
           </div>
         )}
         {credentials && inputMethod === 'file' && (
-          <div className="text-sm text-green-600 flex items-center gap-2">
+          <div className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
             <Key className="w-4 h-4" />
             File loaded ({credentials.length} characters)
           </div>

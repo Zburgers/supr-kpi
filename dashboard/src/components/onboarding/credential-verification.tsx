@@ -58,10 +58,10 @@ export function CredentialVerification({
 
   return (
     <div className="space-y-4">
-      <div className="border border-gray-200 rounded-lg p-6">
+      <div className="border border-border rounded-lg p-6 bg-card text-foreground">
         {status === 'idle' && (
           <div className="text-center space-y-4">
-            <div className="text-gray-600">
+            <div className="text-muted-foreground">
               Ready to verify your {service} credentials
             </div>
             <Button onClick={handleVerify} className="w-full">
@@ -73,9 +73,9 @@ export function CredentialVerification({
 
         {status === 'testing' && (
           <div className="text-center space-y-4">
-            <Loader2 className="w-12 h-12 mx-auto text-blue-500 animate-spin" />
-            <div className="text-gray-600">Testing connection...</div>
-            <div className="text-sm text-gray-500">
+            <Loader2 className="w-12 h-12 mx-auto text-primary animate-spin" />
+            <div className="text-muted-foreground">Testing connection...</div>
+            <div className="text-sm text-muted-foreground">
               This may take a few seconds
             </div>
           </div>
@@ -88,12 +88,12 @@ export function CredentialVerification({
               ✓ Connection Successful!
             </div>
             {metadata?.email && (
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 Connected as: <span className="font-medium">{metadata.email}</span>
               </div>
             )}
             {metadata?.account_name && (
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 Account: <span className="font-medium">{metadata.account_name}</span>
               </div>
             )}
@@ -111,7 +111,7 @@ export function CredentialVerification({
               Connection Failed
             </div>
             {errorMessage && (
-              <div className="text-sm text-gray-600 bg-red-50 p-3 rounded-md">
+              <div className="text-sm text-muted-foreground bg-destructive/10 border border-destructive/30 p-3 rounded-md">
                 {errorMessage}
               </div>
             )}
@@ -129,7 +129,7 @@ export function CredentialVerification({
       </div>
 
       {status !== 'idle' && (
-        <div className="text-xs text-gray-500 text-center">
+        <div className="text-xs text-muted-foreground text-center">
           Credential ID: {credentialId.slice(0, 8)}...
         </div>
       )}

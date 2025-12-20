@@ -540,7 +540,7 @@ export function Dashboard() {
 
       {/* Footer */}
       <footer className="border-t py-4 mt-8">
-        <div className="container px-4 md:px-6">
+        <div className="w-full max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
           <p className="text-center text-sm text-muted-foreground">
             KPI Data Command Center • Built with ⚡ for SUPR
           </p>

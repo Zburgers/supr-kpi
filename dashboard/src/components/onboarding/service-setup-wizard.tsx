@@ -115,7 +115,7 @@ export function ServiceSetupWizard({ service, onComplete, onSkip }: ServiceSetup
             active={currentStep === 'credential'}
             completed={credentialId !== null}
           />
-          <div className="flex-1 h-0.5 bg-gray-200 mx-2" />
+          <div className="flex-1 h-0.5 bg-muted mx-2" />
           <StepIndicator
             label="Verify"
             active={currentStep === 'verification'}
@@ -123,7 +123,7 @@ export function ServiceSetupWizard({ service, onComplete, onSkip }: ServiceSetup
           />
           {service === 'google_sheets' && (
             <>
-              <div className="flex-1 h-0.5 bg-gray-200 mx-2" />
+              <div className="flex-1 h-0.5 bg-muted mx-2" />
               <StepIndicator
                 label="Select Sheet"
                 active={currentStep === 'sheet'}
@@ -131,7 +131,7 @@ export function ServiceSetupWizard({ service, onComplete, onSkip }: ServiceSetup
               />
             </>
           )}
-          <div className="flex-1 h-0.5 bg-gray-200 mx-2" />
+          <div className="flex-1 h-0.5 bg-muted mx-2" />
           <StepIndicator
             label="Summary"
             active={currentStep === 'summary'}
@@ -142,18 +142,18 @@ export function ServiceSetupWizard({ service, onComplete, onSkip }: ServiceSetup
 
       {/* Error Display */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-600">
+        <div className="mb-6 p-4 rounded-md border border-destructive/30 bg-destructive/10 text-destructive">
           {error}
         </div>
       )}
 
       {/* Step Content */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-card rounded-lg border border-border p-6 text-foreground">
         <h2 className="text-2xl font-bold mb-2">{getServiceLabel(service)}</h2>
 
         {currentStep === 'credential' && (
           <div>
-            <p className="text-gray-600 mb-6">
+            <p className="text-muted-foreground mb-6">
               Enter your {getServiceLabel(service)} credentials to get started.
             </p>
             <CredentialInput
@@ -175,7 +175,7 @@ export function ServiceSetupWizard({ service, onComplete, onSkip }: ServiceSetup
 
         {currentStep === 'verification' && credentialId && (
           <div>
-            <p className="text-gray-600 mb-6">
+            <p className="text-muted-foreground mb-6">
               Let's verify your credentials are working correctly.
             </p>
             <CredentialVerification
@@ -189,7 +189,7 @@ export function ServiceSetupWizard({ service, onComplete, onSkip }: ServiceSetup
 
         {currentStep === 'sheet' && credentialId && (
           <div>
-            <p className="text-gray-600 mb-6">
+            <p className="text-muted-foreground mb-6">
               Select which Google Sheet you want to use for storing {getServiceLabel(service)} data.
             </p>
             <SheetSelector
@@ -201,33 +201,33 @@ export function ServiceSetupWizard({ service, onComplete, onSkip }: ServiceSetup
 
         {currentStep === 'summary' && (
           <div className="space-y-6">
-            <div className="flex items-center gap-3 text-green-600">
+            <div className="flex items-center gap-3 text-green-600 dark:text-green-400">
               <CheckCircle className="w-8 h-8" />
               <div>
                 <h3 className="font-semibold text-lg">Setup Complete!</h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Your {getServiceLabel(service)} integration is ready.
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3 bg-gray-50 p-4 rounded-md">
+            <div className="space-y-3 bg-muted p-4 rounded-md">
               <div className="flex justify-between">
-                <span className="text-gray-600">Service:</span>
+                <span className="text-muted-foreground">Service:</span>
                 <span className="font-medium">{getServiceLabel(service)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Status:</span>
-                <span className="font-medium text-green-600">✓ Verified</span>
+                <span className="text-muted-foreground">Status:</span>
+                <span className="font-medium text-green-600 dark:text-green-400">✓ Verified</span>
               </div>
               {sheetInfo && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Spreadsheet:</span>
+                    <span className="text-muted-foreground">Spreadsheet:</span>
                     <span className="font-medium">{sheetInfo.spreadsheetName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Sheet:</span>
+                    <span className="text-muted-foreground">Sheet:</span>
                     <span className="font-medium">{sheetInfo.sheetName}</span>
                   </div>
                 </>
@@ -259,15 +259,15 @@ function StepIndicator({ label, active, completed }: StepIndicatorProps) {
           completed
             ? 'bg-green-500 text-white'
             : active
-            ? 'bg-blue-500 text-white'
-            : 'bg-gray-200 text-gray-600'
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-muted text-muted-foreground'
         }`}
       >
         {completed ? <CheckCircle className="w-5 h-5" /> : null}
       </div>
       <div
         className={`text-xs mt-1 ${
-          active ? 'text-blue-600 font-medium' : 'text-gray-500'
+          active ? 'text-primary font-medium' : 'text-muted-foreground'
         }`}
       >
         {label}
