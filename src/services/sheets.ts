@@ -152,20 +152,39 @@ class SheetsService {
         return;
       }
 
-      const serviceAccountPath = path.join(
-        __dirname,
-        "../../n8nworkflows-471200-2d198eaf6e2a.json"
-      );
+      const inlineJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+      const inlineJsonBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
+      const serviceAccountPath =
+        process.env.GOOGLE_SERVICE_ACCOUNT_PATH ||
+        process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+        path.join(__dirname, "../../n8nworkflows-471200-2d198eaf6e2a.json");
 
-      if (!fs.existsSync(serviceAccountPath)) {
-        throw new Error(
-          `Service account file not found at ${serviceAccountPath}`
+      let serviceAccountRaw: string;
+
+      if (inlineJson) {
+        serviceAccountRaw = inlineJson;
+      } else if (inlineJsonBase64) {
+        serviceAccountRaw = Buffer.from(inlineJsonBase64, "base64").toString(
+          "utf-8"
         );
+      } else {
+        if (!fs.existsSync(serviceAccountPath)) {
+          throw new Error(
+            `Service account file not found at ${serviceAccountPath}`
+          );
+        }
+
+        const stats = fs.statSync(serviceAccountPath);
+        if (stats.isDirectory()) {
+          throw new Error(
+            `Service account path points to a directory: ${serviceAccountPath}`
+          );
+        }
+
+        serviceAccountRaw = fs.readFileSync(serviceAccountPath, "utf-8");
       }
 
-      const serviceAccount = JSON.parse(
-        fs.readFileSync(serviceAccountPath, "utf-8")
-      );
+      const serviceAccount = JSON.parse(serviceAccountRaw);
 
       this.serviceAccountEmail = serviceAccount.client_email;
 

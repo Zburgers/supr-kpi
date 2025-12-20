@@ -24,6 +24,15 @@ import {
   corsConfig,
 } from '../lib/security.js';
 
+// Database and authentication
+import { initializeDatabase, closeDatabase } from '../lib/database.js';
+import { authenticate } from '../middleware/auth.js';
+
+// Credential management routes
+import credentialRoutes from '../routes/credentials.js';
+import serviceRoutes from '../routes/services.js';
+import sheetRoutes from '../routes/sheets.js';
+
 // Queue system
 import { etlQueue } from '../lib/queue.js';
 import { etlWorker } from '../lib/worker.js';
@@ -99,6 +108,15 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   });
   next();
 });
+
+// ============================================================================
+// CREDENTIAL MANAGEMENT ROUTES (NEW)
+// ============================================================================
+// Routes for managing encrypted credentials and services
+
+app.use('/api/credentials', authenticate, credentialRoutes);
+app.use('/api/services', authenticate, serviceRoutes);
+app.use('/api/sheet-mappings', authenticate, sheetRoutes);
 
 // ============================================================================
 // HEALTH & STATUS ENDPOINTS
@@ -719,6 +737,18 @@ async function startServer(): Promise<void> {
     console.log('');
   }
 
+  // Initialize database
+  if (process.env.DB_ENABLED !== 'false') {
+    try {
+      await initializeDatabase();
+      logger.info('Database initialized');
+    } catch (error) {
+      logger.warn('Database initialization failed - credential management will be unavailable', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   // Initialize queue
   try {
     await etlQueue.initialize();
@@ -759,13 +789,16 @@ async function startServer(): Promise<void> {
     console.log('='.repeat(60) + '\n');
 
     console.log('📡 API Endpoints:');
-    console.log('   Health:    GET  /api/health');
-    console.log('   Sync All:  POST /api/v1/sync/all');
-    console.log('   Sync Meta: POST /api/v1/sync/meta');
-    console.log('   Sync GA4:  POST /api/v1/sync/ga4');
-    console.log('   Sync Shop: POST /api/v1/sync/shopify');
-    console.log('   Jobs:      GET  /api/v1/jobs/:jobId');
-    console.log('   Scheduler: GET  /api/v1/scheduler/status');
+    console.log('   Health:      GET  /api/health');
+    console.log('   Credentials: POST /api/credentials/save');
+    console.log('   Credentials: GET  /api/credentials/list');
+    console.log('   Services:    GET  /api/services');
+    console.log('   Sync All:    POST /api/v1/sync/all');
+    console.log('   Sync Meta:   POST /api/v1/sync/meta');
+    console.log('   Sync GA4:    POST /api/v1/sync/ga4');
+    console.log('   Sync Shop:   POST /api/v1/sync/shopify');
+    console.log('   Jobs:        GET  /api/v1/jobs/:jobId');
+    console.log('   Scheduler:   GET  /api/v1/scheduler/status');
     console.log('');
   });
 }
@@ -776,6 +809,7 @@ process.on('SIGTERM', async () => {
   scheduler.stop();
   await etlWorker.stop();
   await etlQueue.close();
+  await closeDatabase();
   process.exit(0);
 });
 
@@ -784,6 +818,7 @@ process.on('SIGINT', async () => {
   scheduler.stop();
   await etlWorker.stop();
   await etlQueue.close();
+  await closeDatabase();
   process.exit(0);
 });
 
