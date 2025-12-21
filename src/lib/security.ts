@@ -144,7 +144,20 @@ export function securityHeaders(): RequestHandler {
     // Content Security Policy (adjust as needed)
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://cdn.jsdelivr.net/npm/@clerk/ https://clerk.pegasus.nakshatraneuratech.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://cdn.jsdelivr.net/npm/@clerk/ https://clerk.pegasus.nakshatraneuratech.dev; img-src 'self' data: https: https://img.clerk.com; font-src 'self' data:; connect-src 'self' https://*.clerk.accounts.dev https://clerk-telemetry.com https://analyticsdata.googleapis.com https://sheets.googleapis.com https://graph.facebook.com https://*.myshopify.com https://clerk.pegasus.nakshatraneuratech.dev; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self' https://challenges.cloudflare.com;"
+      "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' " +
+          "https://*.clerk.accounts.dev https://cdn.jsdelivr.net/npm/@clerk/ " +
+          "https://clerk.pegasus.nakshatraneuratech.dev https://challenges.cloudflare.com " +
+          "https://static.cloudflareinsights.com; " +
+        "style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://cdn.jsdelivr.net/npm/@clerk/ https://clerk.pegasus.nakshatraneuratech.dev; " +
+        "img-src 'self' data: https: https://img.clerk.com https://static.cloudflareinsights.com; " +
+        "font-src 'self' data:; " +
+        "connect-src 'self' https://*.clerk.accounts.dev https://clerk-telemetry.com " +
+          "https://analyticsdata.googleapis.com https://sheets.googleapis.com https://graph.facebook.com " +
+          "https://*.myshopify.com https://clerk.pegasus.nakshatraneuratech.dev https://static.cloudflareinsights.com; " +
+        "worker-src 'self' blob:; " +
+        "child-src 'self' blob:; " +
+        "frame-src 'self' https://challenges.cloudflare.com;"
     );
 
     // Permissions Policy
