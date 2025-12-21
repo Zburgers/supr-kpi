@@ -10,13 +10,12 @@ import { useState, useCallback } from 'react';
 import { ArrowRight, CheckCircle, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ImprovedServiceWizard } from '@/components/onboarding/improved-service-wizard';
-import { OnboardingProvider, useOnboarding } from '@/contexts/onboarding-context';
+import { OnboardingProvider } from '@/contexts/onboarding-context';
 import { useUserStatus } from '@/hooks/useUserStatus';
 import { navigate } from '@/lib/navigation';
 
 function OnboardingContent() {
-  const { markOnboardingComplete } = useOnboarding();
-  const { refetch } = useUserStatus();
+  const { markOnboardingComplete, refetch } = useUserStatus();
   const [showWizard, setShowWizard] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
 
