@@ -829,6 +829,17 @@ async function startServer(): Promise<void> {
     console.log('   List Sheet Mappings:       GET  /api/sheet-mappings');
 
     console.log('');
+    console.log('⏰ Automation & Schedules:');
+    console.log('   List Schedules:            GET  /api/schedules');
+    console.log('   Update Schedule:           PUT  /api/schedules/:service');
+    console.log('   Run Manual Sync:           POST /api/schedules/:service/run');
+
+    console.log('');
+    console.log('📜 Activity & Audit Logs:');
+    console.log('   Get Activity Log:          GET  /api/activity-log');
+    console.log('   Get Log Stats:             GET  /api/activity-log/stats');
+
+    console.log('');
     console.log('🔄 Sync Operations (v1):');
     console.log('   Sync All Sources:          POST /api/v1/sync/all');
     console.log('   Sync Meta:                 POST /api/v1/sync/meta');
@@ -844,7 +855,7 @@ async function startServer(): Promise<void> {
     console.log('   Queue Stats:               GET  /api/v1/queue/stats');
 
     console.log('');
-    console.log('⏰ Scheduler:');
+    console.log('⏰ Scheduler (Legacy):');
     console.log('   Scheduler Status:          GET  /api/v1/scheduler/status');
     console.log('   Start Scheduler:           POST /api/v1/scheduler/start');
     console.log('   Stop Scheduler:            POST /api/v1/scheduler/stop');
@@ -867,6 +878,9 @@ async function startServer(): Promise<void> {
     console.log('   Legacy Shopify Fetch:      POST /api/shopify/fetch');
     console.log('   Legacy GA Fetch:           POST /api/google/fetch');
 
+    console.log('');
+    console.log('💡 Note: All authenticated endpoints require Clerk JWT token');
+    console.log('💡 Note: Legacy endpoints are deprecated and will be removed');
     console.log('');
   });
 }

@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useUser, useClerk } from '@clerk/clerk-react';
 import {
   User,
   Key,
@@ -262,6 +263,33 @@ export function Settings() {
 
 // Account Section Component
 function AccountSection() {
+  const { user, isLoaded } = useUser();
+  const { openUserProfile, signOut } = useClerk();
+
+  const handleManageAccount = () => {
+    openUserProfile();
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    window.location.href = '/';
+  };
+
+  const handleDeleteAccount = () => {
+    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      // Open Clerk user profile to the delete account section
+      openUserProfile();
+    }
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="bg-card rounded-lg border border-border p-6 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="bg-card rounded-lg border border-border p-6 space-y-6">
       <div>
@@ -269,25 +297,47 @@ function AccountSection() {
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium text-muted-foreground">Display Name</label>
-            <div className="mt-1 text-foreground">John Doe</div>
+            <div className="mt-1 text-foreground">
+              {user?.fullName || user?.firstName || user?.username || 'Not set'}
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">Username</label>
+            <div className="mt-1 text-foreground">
+              {user?.username || 'Not set'}
+            </div>
           </div>
           <div>
             <label className="text-sm font-medium text-muted-foreground">Email</label>
-            <div className="mt-1 text-foreground">john.doe@example.com</div>
+            <div className="mt-1 text-foreground">
+              {user?.primaryEmailAddress?.emailAddress || 'Not set'}
+            </div>
           </div>
+          {user?.createdAt && (
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Member Since</label>
+              <div className="mt-1 text-foreground">
+                {new Date(user.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="pt-6 border-t border-border space-y-3">
-        <Button variant="outline" className="w-full">
+        <Button variant="outline" className="w-full" onClick={handleManageAccount}>
           <User className="w-4 h-4 mr-2" />
           Manage Account (Clerk)
         </Button>
-        <Button variant="outline" className="w-full">
+        <Button variant="outline" className="w-full" onClick={handleLogout}>
           <LogOut className="w-4 h-4 mr-2" />
           Logout
         </Button>
-        <Button variant="destructive" className="w-full">
+        <Button variant="destructive" className="w-full" onClick={handleDeleteAccount}>
           <Trash2 className="w-4 h-4 mr-2" />
           Delete Account
         </Button>
