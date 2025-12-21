@@ -28,9 +28,7 @@ import {
   RefreshCw,
   Loader2,
   FileSpreadsheet,
-  Settings,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
 
 interface SheetData {
   headers: string[]
@@ -40,7 +38,7 @@ interface SheetData {
 }
 
 export function SheetViewerDialog() {
-  const { sheetConfig, loading: configLoading } = useServiceConfig()
+  const { sheetConfig, services } = useServiceConfig()
   const { saveSheetMapping } = useSheetMappings()
   const [open, setOpen] = useState(false)
   const [spreadsheets, setSpreadsheets] = useState<SpreadsheetInfo[]>([])
@@ -193,9 +191,17 @@ export function SheetViewerDialog() {
     setSheetData(cached || null)
     
     // Save the sheet mapping to backend for the current tab's service
+    // Use sheets credential for Google Sheets operations
+    const sheetsCredentialId = services.sheets?.credentialId
+    if (!sheetsCredentialId) {
+      console.warn('No sheets credential configured, skipping mapping save')
+      return
+    }
+    
     try {
       await saveSheetMapping({
         service: activeTab,
+        credential_id: sheetsCredentialId,
         spreadsheet_id: selectedSpreadsheet,
         sheet_name: sheetName,
       })

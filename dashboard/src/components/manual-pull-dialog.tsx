@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { useServiceConfig } from '@/hooks/useServiceConfig'
 import * as api from '@/lib/api'
 import { Download, Loader2, CheckCircle, XCircle, Calendar, Settings } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { navigate } from '@/lib/navigation'
 
 interface PullResult {
   platform: string
@@ -132,12 +132,15 @@ export function ManualPullDialog() {
               <p className="text-sm text-muted-foreground mt-2">
                 No services are configured yet. Please configure your API credentials first.
               </p>
-              <Link to="/settings">
-                <Button variant="outline" size="sm" className="mt-3">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Go to Settings
-                </Button>
-              </Link>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-3"
+                onClick={() => navigate('/settings')}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Go to Settings
+              </Button>
             </div>
           )}
 

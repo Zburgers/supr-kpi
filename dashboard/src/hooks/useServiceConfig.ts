@@ -9,7 +9,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useServices } from './useServices';
 import { useSheetMappings } from './useSheetMappings';
-import type { ServiceConfig, SheetMapping } from '@/types/api';
 
 export interface ServiceState {
   meta: { configured: boolean; credentialId?: string };
@@ -78,8 +77,8 @@ export function useServiceConfig(): ServiceConfigState {
         const serviceName = config.service as keyof ServiceState;
         if (serviceName in newServices) {
           newServices[serviceName] = {
-            configured: config.enabled && !!config.credential_id,
-            credentialId: config.credential_id,
+            configured: config.enabled && config.configured,
+            credentialId: config.credential?.id,
           };
         }
       }
