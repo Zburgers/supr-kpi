@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { CredentialEditForm } from '@/components/settings/credential-edit-form';
+import { CredentialAddDialog } from '@/components/settings/credential-add-dialog';
 import { ScheduleConfig } from '@/components/settings/schedule-config';
 import { ActivityLog } from '@/components/settings/activity-log';
 import { SheetSelector } from '@/components/onboarding/sheet-selector';
@@ -45,6 +46,7 @@ export function Settings() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingCredential, setEditingCredential] = useState<string | null>(null);
+  const [addingCredential, setAddingCredential] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<string | null>(null);
   const [editingSheet, setEditingSheet] = useState<ServiceType | null>(null);
 
@@ -182,6 +184,7 @@ export function Settings() {
               onVerify={handleVerifyCredential}
               onEdit={setEditingCredential}
               onDelete={handleDeleteCredential}
+              onAdd={() => setAddingCredential(true)}
             />
           </TabsContent>
 
@@ -257,6 +260,13 @@ export function Settings() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Add Credential Dialog */}
+      <CredentialAddDialog
+        open={addingCredential}
+        onOpenChange={setAddingCredential}
+        onSuccess={loadData}
+      />
     </div>
   );
 }
@@ -357,14 +367,15 @@ interface CredentialsSectionProps {
   onVerify: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onAdd: () => void;
 }
 
-function CredentialsSection({ credentials, onVerify, onEdit, onDelete }: CredentialsSectionProps) {
+function CredentialsSection({ credentials, onVerify, onEdit, onDelete, onAdd }: CredentialsSectionProps) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-foreground">Saved Credentials</h2>
-        <Button>
+        <Button onClick={onAdd}>
           <Plus className="w-4 h-4 mr-2" />
           Add Credential
         </Button>

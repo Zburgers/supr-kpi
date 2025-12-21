@@ -21,7 +21,10 @@ export type AuditAction =
   | 'service_enabled'
   | 'service_disabled'
   | 'sheet_mapping_set'
-  | 'verification_failed';
+  | 'verification_failed'
+  | 'workflow_run'
+  | 'workflow_completed'
+  | 'workflow_failed';
 
 export type AuditStatus = 'success' | 'failure' | 'partial';
 
