@@ -96,16 +96,29 @@ export async function initializeSchema(): Promise<void> {
         email VARCHAR(255) UNIQUE NOT NULL,
         name VARCHAR(255),
         status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'deleted')),
+        onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
       COMMENT ON COLUMN users.clerk_id IS 'Unique identifier from Clerk';
       COMMENT ON COLUMN users.status IS 'active, suspended, or deleted';
+      COMMENT ON COLUMN users.onboarding_complete IS 'Whether user has completed onboarding flow';
 
       CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+    `);
+
+    // Add onboarding_complete column if it doesn't exist (migration for existing tables)
+    await client.query(`
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                       WHERE table_name = 'users' AND column_name = 'onboarding_complete') THEN
+          ALTER TABLE users ADD COLUMN onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE;
+        END IF;
+      END $$;
     `);
 
     // Create credentials table - stores encrypted service credentials
@@ -343,11 +356,48 @@ export async function getOrCreateUser(
  */
 export async function getUserByClerkId(clerkId: string): Promise<any | null> {
   const result = await executeQuery(
-    `SELECT id, clerk_id, email FROM users WHERE clerk_id = $1;`,
+    `SELECT id, clerk_id, email, onboarding_complete FROM users WHERE clerk_id = $1;`,
     [clerkId]
   );
 
   return result.rows[0] || null;
+}
+
+/**
+ * Get user status including onboarding
+ */
+export async function getUserStatus(userId: number): Promise<{
+  id: number;
+  email: string;
+  onboardingComplete: boolean;
+} | null> {
+  const result = await executeQuery(
+    `SELECT id, email, onboarding_complete FROM users WHERE id = $1;`,
+    [userId]
+  );
+
+  if (result.rows.length === 0) return null;
+
+  return {
+    id: result.rows[0].id,
+    email: result.rows[0].email,
+    onboardingComplete: result.rows[0].onboarding_complete,
+  };
+}
+
+/**
+ * Update user onboarding status
+ */
+export async function updateOnboardingStatus(
+  userId: number,
+  complete: boolean
+): Promise<boolean> {
+  const result = await executeQuery(
+    `UPDATE users SET onboarding_complete = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id;`,
+    [complete, userId]
+  );
+
+  return result.rowCount > 0;
 }
 
 /**

@@ -3,11 +3,11 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useUser } from '@clerk/clerk-react';
 import { ArrowRight, CheckCircle, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ServiceSetupWizard } from '@/components/onboarding/service-setup-wizard';
 import { OnboardingProvider, useOnboarding } from '@/contexts/onboarding-context';
+import { useUserStatus } from '@/hooks/useUserStatus';
 import { navigate } from '@/lib/navigation';
 import type { ServiceType } from '@/types/api';
 
@@ -21,9 +21,10 @@ const SERVICE_LABELS: Record<ServiceType, string> = {
 };
 
 function OnboardingContent() {
-  const { currentStep, completedServices, nextStep } = useOnboarding();
-  const { user } = useUser();
+  const { currentStep, completedServices, nextStep, setStep } = useOnboarding();
+  const { markOnboardingComplete, refetch } = useUserStatus();
   const [currentService, setCurrentService] = useState<ServiceType | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   const handleServiceComplete = useCallback(() => {
     setCurrentService(null);
@@ -40,22 +41,32 @@ function OnboardingContent() {
   }, []);
 
   const handleFinish = useCallback(async () => {
-    // Update user's onboarding status in Clerk
-    if (user) {
-      try {
-        await user.update({
-          publicMetadata: {
-            ...user.publicMetadata,
-            onboardingComplete: true,
-          }
-        } as any); // Type assertion to handle Clerk's typing
-      } catch (error) {
-        console.error('Failed to update onboarding status:', error);
+    setIsFinishing(true);
+    try {
+      // Update user's onboarding status in our database
+      const success = await markOnboardingComplete();
+      if (!success) {
+        console.error('Failed to update onboarding status');
+      } else {
+        // Refetch user status to update needsOnboarding flag
+        await refetch();
+        // Force navigation to dashboard
+        navigate('/');
       }
+    } catch (error) {
+      console.error('Failed to update onboarding status:', error);
+      // Navigate to dashboard even on error
+      navigate('/');
+    } finally {
+      setIsFinishing(false);
     }
-    // Navigate to dashboard
-    navigate('/');
-  }, [user]);
+  }, [markOnboardingComplete, refetch]);
+
+  const handleConfigureMore = useCallback(() => {
+    // Go back to first service step
+    setStep(1);
+    setCurrentService(null);
+  }, [setStep]);
 
   // Step 0: Welcome
   if (currentStep === 0) {
@@ -239,12 +250,12 @@ function OnboardingContent() {
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button onClick={handleFinish} className="flex-1" size="lg">
-              Go to Dashboard
+            <Button onClick={handleFinish} disabled={isFinishing} className="flex-1" size="lg">
+              {isFinishing ? 'Loading...' : 'Go to Dashboard'}
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
             <Button
-              onClick={() => setCurrentService(SERVICES[0])}
+              onClick={handleConfigureMore}
               variant="outline"
               size="lg"
             >

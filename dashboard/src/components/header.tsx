@@ -1,5 +1,4 @@
 import { UserButton } from '@clerk/clerk-react'
-import { SettingsDialog } from './settings-dialog'
 import { SheetViewerDialog } from './sheet-viewer-dialog'
 import { ManualPullDialog } from './manual-pull-dialog'
 import { Button } from '@/components/ui/button'
@@ -151,8 +150,7 @@ export function Header({
             </Button>
           )}
 
-          {/* Settings (Original Dialog) */}
-          {showNavigation && <SettingsDialog />}
+          {/* Removed legacy popup Settings dialog; use Settings page link instead */}
           
           {/* User Menu */}
           <UserButton 

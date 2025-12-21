@@ -88,6 +88,7 @@ services:
       dockerfile: Dockerfile
       args:
         NODE_VERSION: "20"
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
     image: kpi-etl:latest
     container_name: kpi-etl
     restart: unless-stopped
@@ -162,7 +163,7 @@ services:
       - SHOPIFY_STORE_DOMAIN=${SHOPIFY_STORE_DOMAIN}
       - SHOPIFY_ACCESS_TOKEN=${SHOPIFY_ACCESS_TOKEN}
       - SHOPIFY_SPREADSHEET_ID=${SHOPIFY_SPREADSHEET_ID}
-      - SHOPIFY_SHEET_NAME=${SHOPIFY_SHEET_NAME:-Shopify}
+      - SHOPIFY_SHEET_NAME=${SHOPIFY_SHEET_NAME}
       
       # Notification configuration
       - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}

@@ -1,13 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+// Deprecated: Legacy popup SettingsDialog removed in favor of Settings page.
+// This stub prevents accidental imports. Do not use.
+export function SettingsDialog() {
+  if (import.meta.env.DEV) {
+    console.warn('SettingsDialog is deprecated. Use the Settings page (/settings).')
+  }
+  return null
+}
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {

@@ -32,6 +32,7 @@ import { authenticate } from '../middleware/auth.js';
 import credentialRoutes from '../routes/credentials.js';
 import serviceRoutes from '../routes/services.js';
 import sheetRoutes from '../routes/sheets.js';
+import userRoutes from '../routes/user.js';
 
 // Queue system
 import { etlQueue } from '../lib/queue.js';
@@ -117,6 +118,7 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 app.use('/api/credentials', authenticate, credentialRoutes);
 app.use('/api/services', authenticate, serviceRoutes);
 app.use('/api/sheet-mappings', authenticate, sheetRoutes);
+app.use('/api/user', userRoutes);
 
 // ============================================================================
 // HEALTH & STATUS ENDPOINTS
@@ -794,6 +796,12 @@ async function startServer(): Promise<void> {
     console.log('🔒 Authentication & Authorization:');
     console.log('   Health Check:              GET  /api/health');
     console.log('   Initialize:                GET  /api/init');
+
+    console.log('');
+    console.log('👤 User & Onboarding:');
+    console.log('   Get User Status:           GET  /api/user/status');
+    console.log('   Complete Onboarding:       POST /api/user/onboarding/complete');
+    console.log('   Reset Onboarding:          POST /api/user/onboarding/reset');
 
     console.log('');
     console.log('🔐 Credential Management:');

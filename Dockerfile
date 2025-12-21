@@ -16,6 +16,10 @@ RUN if [ -f package-lock.json ]; then npm ci --prefer-offline; else npm install;
 
 FROM node:${NODE_VERSION}-alpine AS dashboard-build
 
+# Accept build arg for Clerk publishable key (public, safe to embed in frontend)
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+
 WORKDIR /app/dashboard
 COPY --from=dashboard-deps /app/dashboard/node_modules ./node_modules
 COPY dashboard .

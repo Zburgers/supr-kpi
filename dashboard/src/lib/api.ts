@@ -188,3 +188,26 @@ export async function getSheetRawData(
 ): Promise<ApiResponse<string[][]>> {
   return fetchApi<string[][]>(`/data/raw/${spreadsheetId}/${encodeURIComponent(sheetName)}`)
 }
+
+// User Status & Onboarding
+export interface UserStatus {
+  id: number
+  email: string
+  onboardingComplete: boolean
+}
+
+export async function getUserStatus(): Promise<ApiResponse<UserStatus>> {
+  return fetchApi<UserStatus>('/user/status')
+}
+
+export async function completeOnboarding(): Promise<ApiResponse<{ onboardingComplete: boolean }>> {
+  return fetchApi<{ onboardingComplete: boolean }>('/user/onboarding/complete', {
+    method: 'POST',
+  })
+}
+
+export async function resetOnboarding(): Promise<ApiResponse<{ onboardingComplete: boolean }>> {
+  return fetchApi<{ onboardingComplete: boolean }>('/user/onboarding/reset', {
+    method: 'POST',
+  })
+}

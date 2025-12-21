@@ -8,14 +8,19 @@ import { Dashboard } from '@/pages/dashboard'
 import { Onboarding } from '@/pages/onboarding'
 import { Settings } from '@/pages/settings'
 import { useAuthenticatedApi } from '@/hooks/use-authenticated-api'
+import { useUserStatus } from '@/hooks/useUserStatus'
+import { navigate } from '@/lib/navigation'
 import './index.css'
 
 function AppContent() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname)
-  const { user, isLoaded } = useUser()
+  const { isLoaded: clerkLoaded } = useUser()
   
   // Set up authenticated API calls
   useAuthenticatedApi()
+  
+  // Get user status from our backend (includes onboarding status)
+  const { loading: statusLoading, needsOnboarding } = useUserStatus()
 
   useEffect(() => {
     // Listen for navigation events
@@ -27,12 +32,24 @@ function AppContent() {
     return () => window.removeEventListener('popstate', handleNavigation)
   }, [])
 
-  // Check if user needs onboarding (first time user)
-  const needsOnboarding = isLoaded && user && !user.publicMetadata?.onboardingComplete
+  // Show loading state while checking auth and status
+  if (!clerkLoaded || statusLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    )
+  }
 
   // Simple routing based on path
   const renderPage = () => {
-    // Force onboarding for new users
+    // If onboarding is complete but URL is still /onboarding, send user to dashboard
+    if (!needsOnboarding && currentPath === '/onboarding') {
+      navigate('/')
+      return <Dashboard />
+    }
+
+    // Force onboarding for new users (status exists but onboarding not complete)
     if (needsOnboarding && currentPath !== '/onboarding') {
       window.history.pushState({}, '', '/onboarding')
       return <Onboarding />
