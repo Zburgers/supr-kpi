@@ -130,7 +130,7 @@ services:
       # Clerk Authentication
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - CLERK_PUBLIC_KEY=${CLERK_PUBLIC_KEY}
-      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    
       
       # Encryption (generate with: openssl rand -base64 32)
       - MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY}
@@ -141,21 +141,21 @@ services:
       - MAX_RETRIES=${MAX_RETRIES:-3}
       
       # Google Sheets configuration
-      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID:-1HlVbOXTfNJjHCt2fzHz8uCkZjUBHxFPRXB-2mcVNvu8}
+      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
       
       # Meta configuration
       - META_ENABLED=${META_ENABLED:-true}
       - META_ACCESS_TOKEN=${META_ACCESS_TOKEN}
       - META_AD_ACCOUNT_ID=${META_AD_ACCOUNT_ID}
       - META_SPREADSHEET_ID=${META_SPREADSHEET_ID}
-      - META_SHEET_NAME=${META_SHEET_NAME:-meta_raw_daily}
+      - META_SHEET_NAME=${META_SHEET_NAME}
       
       # GA4 configuration
       - GA4_ENABLED=${GA4_ENABLED:-true}
       - GOOGLE_ACCESS_TOKEN=${GOOGLE_ACCESS_TOKEN}
       - GA4_PROPERTY_ID=${GA4_PROPERTY_ID}
       - GA4_SPREADSHEET_ID=${GA4_SPREADSHEET_ID}
-      - GA4_SHEET_NAME=${GA4_SHEET_NAME:-Google}
+      - GA4_SHEET_NAME=${GA4_SHEET_NAME}
       
       # Shopify configuration
       - SHOPIFY_ENABLED=${SHOPIFY_ENABLED:-true}
