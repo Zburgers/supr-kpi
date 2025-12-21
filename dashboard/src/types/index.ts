@@ -114,6 +114,13 @@ export interface GA4Credentials {
   serviceAccountKey?: string // JSON string of the service account key
 }
 
+// ============================================================================
+// DEPRECATED: Legacy localStorage-based settings types
+// These are kept for reference but are no longer used.
+// Credentials are now stored encrypted in the backend.
+// ============================================================================
+
+/** @deprecated Use backend credential storage instead */
 export interface PlatformCredentials {
   meta: {
     accessToken: string
@@ -125,6 +132,7 @@ export interface PlatformCredentials {
   }
 }
 
+/** @deprecated Use useServiceConfig hook instead */
 export interface SpreadsheetConfig {
   spreadsheetId: string
   metaSheetName: string
@@ -132,6 +140,7 @@ export interface SpreadsheetConfig {
   shopifySheetName: string
 }
 
+/** @deprecated Settings are now managed through backend APIs */
 export interface AppSettings {
   credentials: PlatformCredentials
   spreadsheet: SpreadsheetConfig

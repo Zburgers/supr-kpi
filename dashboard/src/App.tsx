@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { ThemeProvider } from '@/components/theme-provider'
-import { SettingsProvider } from '@/contexts/settings-context'
 import { OnboardingProvider } from '@/contexts/onboarding-context'
 import { AuthGuard } from '@/components/auth'
 import { Dashboard } from '@/pages/dashboard'
@@ -70,13 +69,11 @@ function AppContent() {
   }
 
   return (
-    <SettingsProvider>
-      <OnboardingProvider>
-        <div className="min-h-screen w-full flex flex-col">
-          {renderPage()}
-        </div>
-      </OnboardingProvider>
-    </SettingsProvider>
+    <OnboardingProvider>
+      <div className="min-h-screen w-full flex flex-col">
+        {renderPage()}
+      </div>
+    </OnboardingProvider>
   )
 }
 

@@ -1,11 +1,12 @@
 /**
  * Custom hook for managing sheet mappings
+ * 
+ * Uses centralized fetchApi for authentication (Clerk JWT)
  */
 
 import { useState, useCallback } from 'react';
-import type { SheetMapping, SheetMappingRequest, ApiResponse } from '@/types/api';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import { fetchApi } from '@/lib/api';
+import type { SheetMapping, SheetMappingRequest } from '@/types/api';
 
 export function useSheetMappings() {
   const [loading, setLoading] = useState(false);
@@ -15,18 +16,11 @@ export function useSheetMappings() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/sheets/mappings`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch sheet mappings: ${response.statusText}`);
+      const result = await fetchApi<SheetMapping[]>('/sheets/mappings');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch sheet mappings');
       }
-
-      const data: ApiResponse<SheetMapping[]> = await response.json();
-      return data.data || [];
+      return (result as { success: true; data: SheetMapping[] }).data || [];
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch sheet mappings';
       setError(message);
@@ -41,25 +35,18 @@ export function useSheetMappings() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/sheets/mappings`, {
+        const result = await fetchApi<SheetMapping>('/sheets/mappings', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
           body: JSON.stringify(request),
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || 'Failed to save sheet mapping');
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to save sheet mapping');
         }
-
-        const data: ApiResponse<SheetMapping> = await response.json();
-        if (!data.data) {
+        const data = (result as { success: true; data: SheetMapping }).data;
+        if (!data) {
           throw new Error('No sheet mapping data returned');
         }
-        return data.data;
+        return data;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to save sheet mapping';
         setError(message);
@@ -76,25 +63,18 @@ export function useSheetMappings() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/sheets/mappings/${mappingId}`, {
+        const result = await fetchApi<SheetMapping>(`/sheets/mappings/${mappingId}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
           body: JSON.stringify(request),
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || 'Failed to update sheet mapping');
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update sheet mapping');
         }
-
-        const data: ApiResponse<SheetMapping> = await response.json();
-        if (!data.data) {
+        const data = (result as { success: true; data: SheetMapping }).data;
+        if (!data) {
           throw new Error('No sheet mapping data returned');
         }
-        return data.data;
+        return data;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update sheet mapping';
         setError(message);
@@ -110,16 +90,11 @@ export function useSheetMappings() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/sheets/mappings/${mappingId}`, {
+      const result = await fetchApi<void>(`/sheets/mappings/${mappingId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to delete sheet mapping');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete sheet mapping');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete sheet mapping';

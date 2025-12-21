@@ -1,11 +1,13 @@
 /**
  * Custom hook for managing activity logs
+ * 
+ * Uses centralized fetchApi for authentication (Clerk JWT)
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { ActivityLogEntry, ActivityLogFilters, ActivityLogResponse, ApiResponse } from '@/types/api';
+import { fetchApi } from '@/lib/api';
+import type { ActivityLogEntry, ActivityLogFilters, ActivityLogResponse } from '@/types/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const POLLING_INTERVAL = 10000; // 10 seconds
 
 export function useActivityLog(autoRefresh = false) {
@@ -13,7 +15,7 @@ export function useActivityLog(autoRefresh = false) {
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
   const [total, setTotal] = useState(0);
-  const intervalRef = useRef<number | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getActivityLog = useCallback(
     async (filters?: ActivityLogFilters): Promise<ActivityLogResponse> => {
@@ -28,23 +30,16 @@ export function useActivityLog(autoRefresh = false) {
         if (filters?.limit) params.append('limit', filters.limit.toString());
         if (filters?.offset) params.append('offset', filters.offset.toString());
 
-        const response = await fetch(`${API_BASE_URL}/activity-log?${params}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch activity log: ${response.statusText}`);
+        const result = await fetchApi<ActivityLogResponse>(`/activity-log?${params}`);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to fetch activity log');
         }
-
-        const data: ApiResponse<ActivityLogResponse> = await response.json();
-        const result = data.data || { entries: [], total: 0, limit: 50, offset: 0 };
         
-        setEntries(result.entries);
-        setTotal(result.total);
+        const data = (result as { success: true; data: ActivityLogResponse }).data || { entries: [], total: 0, limit: 50, offset: 0 };
+        setEntries(data.entries);
+        setTotal(data.total);
         
-        return result;
+        return data;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch activity log';
         setError(message);
@@ -62,8 +57,8 @@ export function useActivityLog(autoRefresh = false) {
       new Date(entry.timestamp).toISOString(),
       entry.service,
       entry.status,
-      entry.record_count.toString(),
-      entry.duration.toString(),
+      entry.record_count?.toString() || '0',
+      entry.duration?.toString() || '0',
       entry.error_message || '',
     ]);
 
@@ -110,6 +105,7 @@ export function useActivityLog(autoRefresh = false) {
     entries,
     total,
     getActivityLog,
+    exportToCsv,
     downloadCsv,
   };
 }

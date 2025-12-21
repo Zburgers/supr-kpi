@@ -1,11 +1,12 @@
 /**
  * Custom hook for managing schedules and automation
+ * 
+ * Uses centralized fetchApi for authentication (Clerk JWT)
  */
 
 import { useState, useCallback } from 'react';
-import type { Schedule, ScheduleUpdateRequest, ApiResponse } from '@/types/api';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import { fetchApi } from '@/lib/api';
+import type { Schedule, ScheduleUpdateRequest } from '@/types/api';
 
 export function useSchedules() {
   const [loading, setLoading] = useState(false);
@@ -15,18 +16,11 @@ export function useSchedules() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/schedules`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch schedules: ${response.statusText}`);
+      const result = await fetchApi<Schedule[]>('/schedules');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch schedules');
       }
-
-      const data: ApiResponse<Schedule[]> = await response.json();
-      return data.data || [];
+      return (result as { success: true; data: Schedule[] }).data || [];
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch schedules';
       setError(message);
@@ -41,25 +35,18 @@ export function useSchedules() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/schedules/${service}`, {
+        const result = await fetchApi<Schedule>(`/schedules/${service}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
           body: JSON.stringify(request),
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || 'Failed to update schedule');
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update schedule');
         }
-
-        const data: ApiResponse<Schedule> = await response.json();
-        if (!data.data) {
+        const data = (result as { success: true; data: Schedule }).data;
+        if (!data) {
           throw new Error('No schedule data returned');
         }
-        return data.data;
+        return data;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update schedule';
         setError(message);
@@ -75,16 +62,11 @@ export function useSchedules() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/schedules/${service}/run`, {
+      const result = await fetchApi<void>(`/schedules/${service}/run`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to trigger run');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to trigger run');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to trigger run';

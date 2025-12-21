@@ -19,7 +19,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useSettings } from '@/contexts/settings-context'
+import { useServiceConfig } from '@/hooks/useServiceConfig'
+import { useSheetMappings } from '@/hooks/useSheetMappings'
 import * as api from '@/lib/api'
 import type { SpreadsheetInfo, SheetInfo } from '@/types'
 import {
@@ -27,7 +28,9 @@ import {
   RefreshCw,
   Loader2,
   FileSpreadsheet,
+  Settings,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 interface SheetData {
   headers: string[]
@@ -37,13 +40,12 @@ interface SheetData {
 }
 
 export function SheetViewerDialog() {
-  const { settings, updateSpreadsheet } = useSettings()
+  const { sheetConfig, loading: configLoading } = useServiceConfig()
+  const { saveSheetMapping } = useSheetMappings()
   const [open, setOpen] = useState(false)
   const [spreadsheets, setSpreadsheets] = useState<SpreadsheetInfo[]>([])
   const [sheets, setSheets] = useState<SheetInfo[]>([])
-  const [selectedSpreadsheet, setSelectedSpreadsheet] = useState<string>(
-    settings.spreadsheet.spreadsheetId
-  )
+  const [selectedSpreadsheet, setSelectedSpreadsheet] = useState<string>('')
   const [selectedSheet, setSelectedSheet] = useState<string>('')
   const [sheetData, setSheetData] = useState<SheetData | null>(null)
   const [isLoadingSpreadsheets, setIsLoadingSpreadsheets] = useState(false)
@@ -52,6 +54,13 @@ export function SheetViewerDialog() {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'meta' | 'ga4' | 'shopify'>('meta')
   const cacheRef = useRef<Map<string, SheetData>>(new Map())
+
+  // Initialize selected spreadsheet from config when it loads
+  useEffect(() => {
+    if (sheetConfig?.spreadsheetId && !selectedSpreadsheet) {
+      setSelectedSpreadsheet(sheetConfig.spreadsheetId)
+    }
+  }, [sheetConfig, selectedSpreadsheet])
 
   // Load spreadsheets on open
   useEffect(() => {
@@ -93,9 +102,9 @@ export function SheetViewerDialog() {
         setSheets(response.data)
         // Auto-select first sheet or the one matching current tab
         const tabSheetMap = {
-          meta: settings.spreadsheet.metaSheetName,
-          ga4: settings.spreadsheet.ga4SheetName,
-          shopify: settings.spreadsheet.shopifySheetName,
+          meta: sheetConfig?.metaSheetName || 'RawMeta',
+          ga4: sheetConfig?.ga4SheetName || 'RawGA',
+          shopify: sheetConfig?.shopifySheetName || 'RawShopify',
         }
         const preferredSheet = tabSheetMap[activeTab]
         const matchingSheet = response.data.find(s => s.name === preferredSheet)
@@ -157,9 +166,9 @@ export function SheetViewerDialog() {
   const handleTabChange = (tab: string) => {
     setActiveTab(tab as 'meta' | 'ga4' | 'shopify')
     const tabSheetMap = {
-      meta: settings.spreadsheet.metaSheetName,
-      ga4: settings.spreadsheet.ga4SheetName,
-      shopify: settings.spreadsheet.shopifySheetName,
+      meta: sheetConfig?.metaSheetName || 'RawMeta',
+      ga4: sheetConfig?.ga4SheetName || 'RawGA',
+      shopify: sheetConfig?.shopifySheetName || 'RawShopify',
     }
     const preferredSheet = tabSheetMap[tab as keyof typeof tabSheetMap]
     const matchingSheet = sheets.find(s => s.name === preferredSheet)
@@ -172,22 +181,26 @@ export function SheetViewerDialog() {
 
   const handleSpreadsheetChange = (value: string) => {
     setSelectedSpreadsheet(value)
-    updateSpreadsheet({ spreadsheetId: value })
+    // Save sheet mapping to backend for each service
+    // Note: This creates/updates mappings with the new spreadsheet ID
     setSelectedSheet('')
     setSheetData(null)
   }
 
-  const handleSheetSelect = (sheetName: string) => {
+  const handleSheetSelect = async (sheetName: string) => {
     setSelectedSheet(sheetName)
     const cached = cacheRef.current.get(`${selectedSpreadsheet}:${sheetName}`)
     setSheetData(cached || null)
-    // Update the corresponding sheet name in settings based on active tab
-    if (activeTab === 'meta') {
-      updateSpreadsheet({ metaSheetName: sheetName })
-    } else if (activeTab === 'ga4') {
-      updateSpreadsheet({ ga4SheetName: sheetName })
-    } else if (activeTab === 'shopify') {
-      updateSpreadsheet({ shopifySheetName: sheetName })
+    
+    // Save the sheet mapping to backend for the current tab's service
+    try {
+      await saveSheetMapping({
+        service: activeTab,
+        spreadsheet_id: selectedSpreadsheet,
+        sheet_name: sheetName,
+      })
+    } catch (err) {
+      console.warn('Failed to save sheet mapping:', err)
     }
   }
 

@@ -9,7 +9,7 @@ import type {
   DateRange,
 } from '@/types'
 import { calculateChange, getDateRange } from '@/lib/utils'
-import { useSettings } from '@/contexts/settings-context'
+import { useServiceConfig } from '@/hooks/useServiceConfig'
 import * as api from '@/lib/api'
 
 interface DashboardData {
@@ -28,7 +28,7 @@ interface CalculatedMetrics {
 }
 
 export function useDashboardData(dateRange: DateRange) {
-  const { settings, isConfigured } = useSettings()
+  const { sheetConfig, isConfigured, loading: configLoading } = useServiceConfig()
   const [data, setData] = useState<DashboardData>({
     meta: [],
     ga4: [],
@@ -139,6 +139,18 @@ export function useDashboardData(dateRange: DateRange) {
 
   const fetchData = useCallback(
     async (forceRefresh = false) => {
+      // Wait for config to load
+      if (configLoading || !sheetConfig?.spreadsheetId) {
+        setData((prev) => ({ 
+          ...prev, 
+          isLoading: configLoading,
+          error: !configLoading && !sheetConfig?.spreadsheetId 
+            ? 'No spreadsheet configured. Please configure your Google Sheets in Settings.' 
+            : null 
+        }))
+        return
+      }
+
       setData((prev) => ({ ...prev, isLoading: true, error: null }))
 
       try {
@@ -154,12 +166,12 @@ export function useDashboardData(dateRange: DateRange) {
           return
         }
 
-        const spreadsheetId = settings.spreadsheet.spreadsheetId
+        const spreadsheetId = sheetConfig.spreadsheetId
 
         const [metaRes, ga4Res, shopifyRes] = await Promise.all([
-          api.getSheetRawData(spreadsheetId, settings.spreadsheet.metaSheetName),
-          api.getSheetRawData(spreadsheetId, settings.spreadsheet.ga4SheetName),
-          api.getSheetRawData(spreadsheetId, settings.spreadsheet.shopifySheetName),
+          api.getSheetRawData(spreadsheetId, sheetConfig.metaSheetName),
+          api.getSheetRawData(spreadsheetId, sheetConfig.ga4SheetName),
+          api.getSheetRawData(spreadsheetId, sheetConfig.shopifySheetName),
         ])
 
         if (!metaRes.success || !metaRes.data) throw new Error(metaRes.error || 'Failed to load Meta data')
@@ -191,7 +203,7 @@ export function useDashboardData(dateRange: DateRange) {
         }))
       }
     },
-    [settings]
+    [sheetConfig, configLoading]
   )
 
   useEffect(() => {
@@ -205,38 +217,14 @@ export function useDashboardData(dateRange: DateRange) {
   const syncPlatform = useCallback(
     async (platform: 'meta' | 'ga4' | 'shopify') => {
       if (!isConfigured(platform)) {
-        return { success: false, error: `${platform} is not configured` }
+        return { success: false, error: `${platform} is not configured. Please configure it in Settings.` }
       }
 
       setData((prev) => ({ ...prev, isLoading: true }))
 
       try {
-        let result
-        switch (platform) {
-          case 'meta':
-            result = await api.syncMeta({
-              accessToken: settings.credentials.meta.accessToken,
-              spreadsheetId: settings.spreadsheet.spreadsheetId,
-              sheetName: settings.spreadsheet.metaSheetName,
-            })
-            break
-          case 'ga4':
-            result = await api.syncGA4({
-              accessToken: settings.credentials.ga4.accessToken || '',
-              propertyId: settings.credentials.ga4.propertyId || '',
-              spreadsheetId: settings.spreadsheet.spreadsheetId,
-              sheetName: settings.spreadsheet.ga4SheetName,
-            })
-            break
-          case 'shopify':
-            result = await api.syncShopify({
-              storeDomain: settings.credentials.shopify.storeDomain,
-              accessToken: settings.credentials.shopify.accessToken,
-              spreadsheetId: settings.spreadsheet.spreadsheetId,
-              sheetName: settings.spreadsheet.shopifySheetName,
-            })
-            break
-        }
+        // Use modern syncService which uses stored credentials from backend
+        const result = await api.syncService(platform)
 
         if (result.success) {
           cacheRef.current = null
@@ -254,7 +242,7 @@ export function useDashboardData(dateRange: DateRange) {
         return { success: false, error: 'Sync failed' }
       }
     },
-    [settings, isConfigured, fetchData]
+    [isConfigured, fetchData]
   )
 
   const syncAll = useCallback(async () => {

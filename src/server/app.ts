@@ -33,6 +33,8 @@ import credentialRoutes from '../routes/credentials.js';
 import serviceRoutes from '../routes/services.js';
 import sheetRoutes from '../routes/sheets.js';
 import userRoutes from '../routes/user.js';
+import scheduleRoutes from '../routes/schedules.js';
+import activityLogRoutes from '../routes/activity-log.js';
 
 // Queue system
 import { etlQueue } from '../lib/queue.js';
@@ -118,6 +120,8 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 app.use('/api/credentials', authenticate, credentialRoutes);
 app.use('/api/services', authenticate, serviceRoutes);
 app.use('/api/sheet-mappings', authenticate, sheetRoutes);
+app.use('/api/schedules', authenticate, scheduleRoutes);
+app.use('/api/activity-log', authenticate, activityLogRoutes);
 app.use('/api/user', userRoutes);
 
 // ============================================================================

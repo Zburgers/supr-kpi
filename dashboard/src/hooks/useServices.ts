@@ -1,11 +1,12 @@
 /**
  * Custom hook for managing services
+ * 
+ * Uses centralized fetchApi for authentication (Clerk JWT)
  */
 
 import { useState, useCallback } from 'react';
-import type { ServiceConfig, Spreadsheet, Sheet, ApiResponse } from '@/types/api';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+import { fetchApi } from '@/lib/api';
+import type { ServiceConfig, Spreadsheet, Sheet } from '@/types/api';
 
 export function useServices() {
   const [loading, setLoading] = useState(false);
@@ -15,18 +16,11 @@ export function useServices() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/services`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch services: ${response.statusText}`);
+      const result = await fetchApi<ServiceConfig[]>('/services');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch services');
       }
-
-      const data: ApiResponse<ServiceConfig[]> = await response.json();
-      return data.data || [];
+      return (result as { success: true; data: ServiceConfig[] }).data || [];
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch services';
       setError(message);
@@ -41,25 +35,18 @@ export function useServices() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`${API_BASE_URL}/services/${service}/enable`, {
+        const result = await fetchApi<ServiceConfig>(`/services/${service}/enable`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
           body: JSON.stringify({ credential_id: credentialId }),
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || 'Failed to enable service');
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to enable service');
         }
-
-        const data: ApiResponse<ServiceConfig> = await response.json();
-        if (!data.data) {
+        const data = (result as { success: true; data: ServiceConfig }).data;
+        if (!data) {
           throw new Error('No service data returned');
         }
-        return data.data;
+        return data;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to enable service';
         setError(message);
@@ -75,16 +62,11 @@ export function useServices() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/services/${service}/disable`, {
+      const result = await fetchApi<void>(`/services/${service}/disable`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'Failed to disable service');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to disable service');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to disable service';
@@ -100,21 +82,13 @@ export function useServices() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/sheets/spreadsheets?credential_id=${credentialId}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
-          }
+        const result = await fetchApi<Spreadsheet[]>(
+          `/sheets/spreadsheets?credential_id=${credentialId}`
         );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch spreadsheets: ${response.statusText}`);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to fetch spreadsheets');
         }
-
-        const data: ApiResponse<Spreadsheet[]> = await response.json();
-        return data.data || [];
+        return (result as { success: true; data: Spreadsheet[] }).data || [];
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch spreadsheets';
         setError(message);
@@ -131,21 +105,13 @@ export function useServices() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/sheets/${spreadsheetId}/sheets?credential_id=${credentialId}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
-          }
+        const result = await fetchApi<Sheet[]>(
+          `/sheets/${spreadsheetId}/sheets?credential_id=${credentialId}`
         );
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch sheets: ${response.statusText}`);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to fetch sheets');
         }
-
-        const data: ApiResponse<Sheet[]> = await response.json();
-        return data.data || [];
+        return (result as { success: true; data: Sheet[] }).data || [];
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch sheets';
         setError(message);

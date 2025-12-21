@@ -12,19 +12,20 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useSettings } from '@/contexts/settings-context'
+import { useServiceConfig } from '@/hooks/useServiceConfig'
 import * as api from '@/lib/api'
-import { Download, Loader2, CheckCircle, XCircle, Calendar } from 'lucide-react'
+import { Download, Loader2, CheckCircle, XCircle, Calendar, Settings } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 interface PullResult {
   platform: string
   success: boolean
   message: string
-  data?: any
+  data?: unknown
 }
 
 export function ManualPullDialog() {
-  const { settings, isConfigured } = useSettings()
+  const { isConfigured, loading: configLoading } = useServiceConfig()
   const [open, setOpen] = useState(false)
   const [targetDate, setTargetDate] = useState<string>(() => {
     const yesterday = new Date()
@@ -39,116 +40,39 @@ export function ManualPullDialog() {
   })
   const [results, setResults] = useState<PullResult[]>([])
 
-  const pullMeta = async () => {
-    if (!isConfigured('meta')) {
+  const pullPlatform = async (platform: 'meta' | 'ga4' | 'shopify') => {
+    const platformName = platform === 'meta' ? 'Meta' : platform === 'ga4' ? 'GA4' : 'Shopify'
+    
+    if (!isConfigured(platform)) {
       setResults(prev => [...prev, {
-        platform: 'Meta',
+        platform: platformName,
         success: false,
-        message: 'Meta is not configured. Please add your access token in Settings.',
+        message: `${platformName} is not configured. Please configure it in Settings.`,
       }])
       return
     }
 
-    setIsPulling(prev => ({ ...prev, meta: true }))
+    setIsPulling(prev => ({ ...prev, [platform]: true }))
     try {
-      const response = await api.fetchMetaData({
-        accessToken: settings.credentials.meta.accessToken,
-        spreadsheetId: settings.spreadsheet.spreadsheetId,
-        sheetName: settings.spreadsheet.metaSheetName,
-      })
+      // Use modern syncService which uses stored credentials from backend
+      const response = await api.syncService(platform, { targetDate })
 
       setResults(prev => [...prev, {
-        platform: 'Meta',
+        platform: platformName,
         success: response.success,
         message: response.success
-          ? `Meta data for ${targetDate} fetched successfully!`
-          : response.error || 'Failed to fetch Meta data',
-        data: response.data,
+          ? `${platformName} data for ${targetDate} synced successfully!`
+          : response.error || `Failed to sync ${platformName} data`,
+        data: response.success ? (response as { success: true; data: unknown }).data : undefined,
       }])
     } catch (error) {
       setResults(prev => [...prev, {
-        platform: 'Meta',
+        platform: platformName,
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to fetch Meta data',
+        message: error instanceof Error ? error.message : `Failed to sync ${platformName} data`,
       }])
     } finally {
-      setIsPulling(prev => ({ ...prev, meta: false }))
-    }
-  }
-
-  const pullGA4 = async () => {
-    if (!isConfigured('ga4')) {
-      setResults(prev => [...prev, {
-        platform: 'GA4',
-        success: false,
-        message: 'GA4 is not configured. Please add your credentials in Settings.',
-      }])
-      return
-    }
-
-    setIsPulling(prev => ({ ...prev, ga4: true }))
-    try {
-      const response = await api.fetchGA4Data({
-        accessToken: settings.credentials.ga4.accessToken || '',
-        propertyId: settings.credentials.ga4.propertyId || '',
-        spreadsheetId: settings.spreadsheet.spreadsheetId,
-        sheetName: settings.spreadsheet.ga4SheetName,
-      })
-
-      setResults(prev => [...prev, {
-        platform: 'GA4',
-        success: response.success,
-        message: response.success
-          ? `GA4 data for ${targetDate} fetched successfully!`
-          : response.error || 'Failed to fetch GA4 data',
-        data: response.data,
-      }])
-    } catch (error) {
-      setResults(prev => [...prev, {
-        platform: 'GA4',
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to fetch GA4 data',
-      }])
-    } finally {
-      setIsPulling(prev => ({ ...prev, ga4: false }))
-    }
-  }
-
-  const pullShopify = async () => {
-    if (!isConfigured('shopify')) {
-      setResults(prev => [...prev, {
-        platform: 'Shopify',
-        success: false,
-        message: 'Shopify is not configured. Please add your credentials in Settings.',
-      }])
-      return
-    }
-
-    setIsPulling(prev => ({ ...prev, shopify: true }))
-    try {
-      const response = await api.fetchShopifyData({
-        storeDomain: settings.credentials.shopify.storeDomain,
-        accessToken: settings.credentials.shopify.accessToken,
-        spreadsheetId: settings.spreadsheet.spreadsheetId,
-        sheetName: settings.spreadsheet.shopifySheetName,
-      })
-
-      setResults(prev => [...prev, {
-        platform: 'Shopify',
-        success: response.success,
-        message: response.success
-          ? `Shopify data for ${targetDate} fetched successfully!`
-          : response.error || 'Failed to fetch Shopify data',
-        data: response.data,
-      }])
-    } catch (error) {
-      setResults(prev => [...prev, {
-        platform: 'Shopify',
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to fetch Shopify data',
-      }])
-    } finally {
-      setIsPulling(prev => ({ ...prev, shopify: false }))
+      setIsPulling(prev => ({ ...prev, [platform]: false }))
     }
   }
 
@@ -157,9 +81,9 @@ export function ManualPullDialog() {
     setIsPulling(prev => ({ ...prev, all: true }))
 
     await Promise.all([
-      pullMeta(),
-      pullGA4(),
-      pullShopify(),
+      pullPlatform('meta'),
+      pullPlatform('ga4'),
+      pullPlatform('shopify'),
     ])
 
     setIsPulling(prev => ({ ...prev, all: false }))
@@ -170,6 +94,9 @@ export function ManualPullDialog() {
   }
 
   const isPullingAny = Object.values(isPulling).some(Boolean)
+
+  // Check if any service needs configuration
+  const needsConfiguration = !isConfigured('meta') && !isConfigured('ga4') && !isConfigured('shopify')
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -195,6 +122,25 @@ export function ManualPullDialog() {
         </DialogHeader>
 
         <div className="space-y-6 mt-4">
+          {/* Configuration Warning */}
+          {needsConfiguration && !configLoading && (
+            <div className="p-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10">
+              <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+                <Settings className="h-5 w-5" />
+                <span className="font-medium">Services Not Configured</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                No services are configured yet. Please configure your API credentials first.
+              </p>
+              <Link to="/settings">
+                <Button variant="outline" size="sm" className="mt-3">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Go to Settings
+                </Button>
+              </Link>
+            </div>
+          )}
+
           {/* Date Selection */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
@@ -220,7 +166,9 @@ export function ManualPullDialog() {
                   <span>📘</span> Meta Ads
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {isConfigured('meta') ? (
+                  {configLoading ? (
+                    <Badge variant="secondary" className="text-xs">Loading...</Badge>
+                  ) : isConfigured('meta') ? (
                     <Badge variant="success" className="text-xs">Configured</Badge>
                   ) : (
                     <Badge variant="error" className="text-xs">Not Configured</Badge>
@@ -229,8 +177,8 @@ export function ManualPullDialog() {
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={pullMeta}
-                  disabled={isPullingAny || !isConfigured('meta')}
+                  onClick={() => pullPlatform('meta')}
+                  disabled={isPullingAny || !isConfigured('meta') || configLoading}
                   className="w-full"
                   variant="outline"
                 >
@@ -255,7 +203,9 @@ export function ManualPullDialog() {
                   <span>📊</span> GA4
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {isConfigured('ga4') ? (
+                  {configLoading ? (
+                    <Badge variant="secondary" className="text-xs">Loading...</Badge>
+                  ) : isConfigured('ga4') ? (
                     <Badge variant="success" className="text-xs">Configured</Badge>
                   ) : (
                     <Badge variant="error" className="text-xs">Not Configured</Badge>
@@ -264,8 +214,8 @@ export function ManualPullDialog() {
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={pullGA4}
-                  disabled={isPullingAny || !isConfigured('ga4')}
+                  onClick={() => pullPlatform('ga4')}
+                  disabled={isPullingAny || !isConfigured('ga4') || configLoading}
                   className="w-full"
                   variant="outline"
                 >
@@ -290,7 +240,9 @@ export function ManualPullDialog() {
                   <span>🏪</span> Shopify
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {isConfigured('shopify') ? (
+                  {configLoading ? (
+                    <Badge variant="secondary" className="text-xs">Loading...</Badge>
+                  ) : isConfigured('shopify') ? (
                     <Badge variant="success" className="text-xs">Configured</Badge>
                   ) : (
                     <Badge variant="error" className="text-xs">Not Configured</Badge>
@@ -299,8 +251,8 @@ export function ManualPullDialog() {
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={pullShopify}
-                  disabled={isPullingAny || !isConfigured('shopify')}
+                  onClick={() => pullPlatform('shopify')}
+                  disabled={isPullingAny || !isConfigured('shopify') || configLoading}
                   className="w-full"
                   variant="outline"
                 >
@@ -323,7 +275,7 @@ export function ManualPullDialog() {
           {/* Pull All Button */}
           <Button
             onClick={pullAll}
-            disabled={isPullingAny}
+            disabled={isPullingAny || configLoading}
             className="w-full"
           >
             {isPulling.all ? (
