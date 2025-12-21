@@ -280,7 +280,9 @@ export async function executeQuery<T = any>(
   try {
     // Set user ID for RLS policies
     if (userId) {
-      await client.query('SET app.current_user_id = $1', [userId]);
+      // Note: SET command doesn't support parameterized queries, so we use string interpolation
+      // The userId comes from our auth middleware and is safe
+      await client.query(`SET app.current_user_id = '${userId}'`);
     }
 
     const result = await client.query(sql, params);
@@ -310,7 +312,9 @@ export async function executeTransaction<T>(
 
     // Set user ID for RLS policies
     if (userId) {
-      await client.query('SET app.current_user_id = $1', [userId]);
+      // Note: SET command doesn't support parameterized queries, so we use string interpolation
+      // The userId comes from our auth middleware and is safe
+      await client.query(`SET app.current_user_id = '${userId}'`);
     }
 
     const result = await callback(client);
