@@ -18,7 +18,9 @@ import {
   Loader2,
   Edit,
   LogOut,
+  ArrowLeft,
 } from 'lucide-react';
+import { navigate } from '@/lib/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -32,11 +34,36 @@ import { useSheetMappings } from '@/hooks/useSheetMappings';
 import { useSchedules } from '@/hooks/useSchedules';
 import type { Credential, SheetMapping, Schedule, ServiceType } from '@/types/api';
 
+type SheetEditTarget = ServiceType | 'master_spreadsheet';
+
 const SERVICE_LABELS: Record<ServiceType, string> = {
   google_sheets: 'Google Sheets',
   meta: 'Meta',
   ga4: 'Google Analytics 4',
   shopify: 'Shopify',
+};
+
+const SERVICE_COLORS: Record<ServiceType, { bg: string; border: string; text: string }> = {
+  google_sheets: {
+    bg: 'bg-green-500/10',
+    border: 'border-green-500/30',
+    text: 'text-green-600',
+  },
+  meta: {
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/30',
+    text: 'text-blue-600',
+  },
+  ga4: {
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500/30',
+    text: 'text-orange-600',
+  },
+  shopify: {
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500/30',
+    text: 'text-purple-600',
+  },
 };
 
 export function Settings() {
@@ -45,10 +72,11 @@ export function Settings() {
   const [sheetMappings, setSheetMappings] = useState<SheetMapping[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadErrors, setLoadErrors] = useState<{ credentials?: string; sheetMappings?: string; schedules?: string }>({});
   const [editingCredential, setEditingCredential] = useState<string | null>(null);
   const [addingCredential, setAddingCredential] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<string | null>(null);
-  const [editingSheet, setEditingSheet] = useState<ServiceType | null>(null);
+  const [editingSheet, setEditingSheet] = useState<SheetEditTarget | null>(null);
 
   const {
     getCredentials,
@@ -60,21 +88,65 @@ export function Settings() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadErrors({});
     try {
-      const [creds, sheets, scheds] = await Promise.all([
+      console.log('[Settings] Loading credentials, sheet mappings, and schedules...');
+      const [credsResult, sheetsResult, schedsResult] = await Promise.allSettled([
         getCredentials(),
         getSheetMappings(),
         getSchedules(),
       ]);
-      setCredentials(creds);
-      setSheetMappings(sheets);
-      setSchedules(scheds);
+
+      if (credsResult.status === 'fulfilled') {
+        setCredentials(credsResult.value);
+      } else {
+        console.error('[Settings] Failed to load credentials:', credsResult.reason);
+        setCredentials([]);
+        setLoadErrors((prev) => ({
+          ...prev,
+          credentials: credsResult.reason instanceof Error ? credsResult.reason.message : 'Failed to load credentials',
+        }));
+      }
+
+      if (sheetsResult.status === 'fulfilled') {
+        setSheetMappings(sheetsResult.value);
+      } else {
+        console.error('[Settings] Failed to load sheet mappings:', sheetsResult.reason);
+        setSheetMappings([]);
+        setLoadErrors((prev) => ({
+          ...prev,
+          sheetMappings: sheetsResult.reason instanceof Error ? sheetsResult.reason.message : 'Failed to load sheet mappings',
+        }));
+      }
+
+      if (schedsResult.status === 'fulfilled') {
+        setSchedules(schedsResult.value);
+      } else {
+        console.error('[Settings] Failed to load schedules:', schedsResult.reason);
+        setSchedules([]);
+        setLoadErrors((prev) => ({
+          ...prev,
+          schedules: schedsResult.reason instanceof Error ? schedsResult.reason.message : 'Failed to load schedules',
+        }));
+      }
+
+      console.log('[Settings] Loaded:', {
+        credentialsCount: credsResult.status === 'fulfilled' ? credsResult.value.length : 0,
+        sheetsCount: sheetsResult.status === 'fulfilled' ? sheetsResult.value.length : 0,
+        schedulesCount: schedsResult.status === 'fulfilled' ? schedsResult.value.length : 0,
+      });
     } catch (err) {
       console.error('Failed to load settings:', err);
     } finally {
       setLoading(false);
     }
   }, [getCredentials, getSheetMappings, getSchedules]);
+
+  const handleCredentialAdded = useCallback(() => {
+    console.log('[Settings] Credential added, refreshing data...');
+    setAddingCredential(false);
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     loadData();
@@ -107,16 +179,31 @@ export function Settings() {
   );
 
   const handleSaveSheet = useCallback(
-    async (spreadsheetId: string, sheetName: string) => {
+    async (spreadsheetId: string, sheetName: string, _spreadsheetName: string) => {
       if (!editingSheet) return;
 
-      const credential = credentials.find((c) => c.service === editingSheet);
-      if (!credential) return;
+      const googleSheetsCredentialId = credentials.find((c) => c.service === 'google_sheets' && c.verified)?.id;
+      if (!googleSheetsCredentialId) return;
+
+      const masterSheetName = '__MASTER__';
 
       try {
+        if (editingSheet === 'master_spreadsheet') {
+          await saveSheetMapping({
+            service: 'google_sheets',
+            credential_id: googleSheetsCredentialId,
+            spreadsheet_id: spreadsheetId,
+            sheet_name: masterSheetName,
+          });
+          setEditingSheet(null);
+          await loadData();
+          return;
+        }
+
+        // Per-service destination sheet (inside the master spreadsheet)
         await saveSheetMapping({
           service: editingSheet,
-          credential_id: credential.id,
+          credential_id: googleSheetsCredentialId,
           spreadsheet_id: spreadsheetId,
           sheet_name: sheetName,
         });
@@ -141,6 +228,18 @@ export function Settings() {
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <button
+              onClick={() => {
+                // Navigate back to the dashboard or previous page
+                navigate('/');
+              }}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Back
+            </button>
+          </div>
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
             <SettingsIcon className="w-8 h-8" />
             Settings
@@ -186,6 +285,11 @@ export function Settings() {
               onDelete={handleDeleteCredential}
               onAdd={() => setAddingCredential(true)}
             />
+            {loadErrors.credentials && (
+              <div className="mt-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded">
+                {loadErrors.credentials}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="sheets">
@@ -194,6 +298,11 @@ export function Settings() {
               credentials={credentials}
               onEdit={setEditingSheet}
             />
+            {loadErrors.sheetMappings && (
+              <div className="mt-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded">
+                {loadErrors.sheetMappings}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="automation">
@@ -201,10 +310,15 @@ export function Settings() {
               schedules={schedules}
               onEdit={setEditingSchedule}
             />
+            {loadErrors.schedules && (
+              <div className="mt-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 p-3 rounded">
+                {loadErrors.schedules}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="activity">
-            <ActivityLog autoRefresh />
+            <ActivityLog autoRefresh={activeTab === 'activity'} />
           </TabsContent>
         </Tabs>
       </div>
@@ -247,17 +361,63 @@ export function Settings() {
       <Dialog open={!!editingSheet} onOpenChange={() => setEditingSheet(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Select Sheet for {editingSheet && SERVICE_LABELS[editingSheet]}</DialogTitle>
+            <DialogTitle>
+              {editingSheet === 'master_spreadsheet'
+                ? 'Select Master Spreadsheet'
+                : `Select Destination Sheet for ${editingSheet ? SERVICE_LABELS[editingSheet] : ''}`}
+            </DialogTitle>
             <DialogDescription>
-              Choose which Google Sheet to use for storing data
+              {editingSheet === 'master_spreadsheet'
+                ? 'Choose the master Google Spreadsheet where all service tabs live'
+                : 'Choose the sheet tab (e.g., RawMeta, RawGA, RawShopify) inside the master spreadsheet'}
             </DialogDescription>
           </DialogHeader>
-          {editingSheet && (
-            <SheetSelector
-              credentialId={credentials.find((c) => c.service === editingSheet)?.id || ''}
-              onSelect={handleSaveSheet}
-            />
-          )}
+          {(() => {
+            if (!editingSheet) return null;
+
+            const googleSheetsCredentialId = credentials.find((c) => c.service === 'google_sheets' && c.verified)?.id || '';
+            const masterMapping = sheetMappings.find((m) => m.service === 'google_sheets' && m.sheet_name === '__MASTER__') ||
+              sheetMappings.find((m) => m.service === 'google_sheets') ||
+              sheetMappings[0];
+            const masterSpreadsheetId = masterMapping?.spreadsheet_id || '';
+            const masterSpreadsheetName = masterMapping?.spreadsheet_name || masterSpreadsheetId;
+
+            if (!googleSheetsCredentialId) {
+              return (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded text-sm text-amber-600">
+                  Add and verify a Google Sheets credential first.
+                </div>
+              );
+            }
+
+            if (editingSheet === 'master_spreadsheet') {
+              return (
+                <SheetSelector
+                  credentialId={googleSheetsCredentialId}
+                  mode="spreadsheet_only"
+                  onSelect={handleSaveSheet}
+                />
+              );
+            }
+
+            if (!masterSpreadsheetId) {
+              return (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded text-sm text-amber-600">
+                  Select a master spreadsheet first.
+                </div>
+              );
+            }
+
+            return (
+              <SheetSelector
+                credentialId={googleSheetsCredentialId}
+                mode="sheet_only"
+                fixedSpreadsheetId={masterSpreadsheetId}
+                fixedSpreadsheetName={masterSpreadsheetName}
+                onSelect={handleSaveSheet}
+              />
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -265,7 +425,7 @@ export function Settings() {
       <CredentialAddDialog
         open={addingCredential}
         onOpenChange={setAddingCredential}
-        onSuccess={loadData}
+        onSuccess={handleCredentialAdded}
       />
     </div>
   );
@@ -371,6 +531,9 @@ interface CredentialsSectionProps {
 }
 
 function CredentialsSection({ credentials, onVerify, onEdit, onDelete, onAdd }: CredentialsSectionProps) {
+  console.log('[CredentialsSection] Rendering with credentials:', credentials);
+  console.log('[CredentialsSection] Credentials length:', credentials.length);
+  
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -387,30 +550,42 @@ function CredentialsSection({ credentials, onVerify, onEdit, onDelete, onAdd }: 
         </div>
       ) : (
         <div className="grid gap-4">
-          {credentials.map((credential) => (
-            <div
-              key={credential.id}
-              className="bg-card rounded-lg border border-border p-6"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">{credential.name}</h3>
-                  <p className="text-sm text-muted-foreground capitalize">
-                    {SERVICE_LABELS[credential.service]} · {credential.type.replace(/_/g, ' ')}
-                  </p>
+          {credentials.map((credential) => {
+            const serviceColor = SERVICE_COLORS[credential.service];
+            return (
+              <div
+                key={credential.id}
+                className={`bg-card rounded-lg border p-6 ${serviceColor.border}`}
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    {/* Service Badge */}
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${serviceColor.bg} ${serviceColor.border} border mb-3`}>
+                      <span className={`text-sm font-medium ${serviceColor.text}`}>
+                        {SERVICE_LABELS[credential.service]}
+                      </span>
+                    </div>
+                    
+                    {/* Credential Name */}
+                    <h3 className="text-lg font-semibold text-foreground">{credential.name}</h3>
+                    <p className="text-sm text-muted-foreground capitalize mt-1">
+                      {credential.type.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                  
+                  {/* Verification Status */}
+                  {credential.verified ? (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="text-sm font-medium">Verified</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <XCircle className="w-5 h-5" />
+                      <span className="text-sm font-medium">Not Verified</span>
+                    </div>
+                  )}
                 </div>
-                {credential.verified ? (
-                  <div className="flex items-center gap-2 text-green-600">
-                    <CheckCircle className="w-5 h-5" />
-                    <span className="text-sm">Verified</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-red-600">
-                    <XCircle className="w-5 h-5" />
-                    <span className="text-sm">Not Verified</span>
-                  </div>
-                )}
-              </div>
 
               {credential.verified_at && (
                 <div className="text-sm text-muted-foreground mb-4">
@@ -418,39 +593,40 @@ function CredentialsSection({ credentials, onVerify, onEdit, onDelete, onAdd }: 
                 </div>
               )}
 
-              {credential.metadata?.email && (
-                <div className="text-sm text-muted-foreground mb-4">
-                  Account: {credential.metadata.email}
-                </div>
-              )}
+                {credential.metadata?.email && (
+                  <div className="text-sm text-muted-foreground mb-4">
+                    Account: {credential.metadata.email}
+                  </div>
+                )}
 
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onVerify(credential.id)}
-                >
-                  Test Connection
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onEdit(credential.id)}
-                >
-                  <Edit className="w-4 h-4 mr-1" />
-                  Update
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onDelete(credential.id)}
-                >
-                  <Trash2 className="w-4 h-4 mr-1" />
-                  Remove
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onVerify(credential.id)}
+                  >
+                    Test Connection
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEdit(credential.id)}
+                  >
+                    <Edit className="w-4 h-4 mr-1" />
+                    Update
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => onDelete(credential.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Remove
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -461,60 +637,107 @@ function CredentialsSection({ credentials, onVerify, onEdit, onDelete, onAdd }: 
 interface SheetMappingsSectionProps {
   mappings: SheetMapping[];
   credentials: Credential[];
-  onEdit: (service: ServiceType) => void;
+  onEdit: (target: SheetEditTarget) => void;
 }
 
 function SheetMappingsSection({ mappings, credentials, onEdit }: SheetMappingsSectionProps) {
-  const services: ServiceType[] = ['google_sheets', 'meta', 'ga4', 'shopify'];
+  const services: ServiceType[] = ['meta', 'ga4', 'shopify'];
+
+  const masterMapping =
+    mappings.find((m) => m.service === 'google_sheets' && m.sheet_name === '__MASTER__') ||
+    mappings.find((m) => m.service === 'google_sheets') ||
+    mappings[0];
+
+  const masterSpreadsheetId = masterMapping?.spreadsheet_id || '';
+  const masterSpreadsheetName = masterMapping?.spreadsheet_name || masterSpreadsheetId;
+  const hasMasterSpreadsheet = !!masterSpreadsheetId;
+
+  const hasGoogleSheetsCredential = credentials.some((c) => c.service === 'google_sheets' && c.verified);
 
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold text-foreground">Sheet Mappings</h2>
       <p className="text-muted-foreground">
-        Configure which Google Sheets are used to store data from each service
+        Select your master spreadsheet, then assign a destination sheet for each service
       </p>
 
       <div className="grid gap-4">
+        <div className="bg-card rounded-lg border border-border p-6">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-foreground">Master Spreadsheet</h3>
+              {hasMasterSpreadsheet ? (
+                <div className="mt-2 space-y-1">
+                  <div className="text-sm text-muted-foreground">
+                    <span className="font-medium">Spreadsheet:</span> {masterSpreadsheetName || masterSpreadsheetId}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-2">No master spreadsheet configured</p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onEdit('master_spreadsheet')}
+              disabled={!hasGoogleSheetsCredential}
+            >
+              {hasMasterSpreadsheet ? 'Change' : 'Configure'}
+            </Button>
+          </div>
+          {!hasGoogleSheetsCredential && (
+            <div className="mt-3 text-sm text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded">
+              Configure Google Sheets credentials first
+            </div>
+          )}
+        </div>
+
         {services.map((service) => {
           const mapping = mappings.find((m) => m.service === service);
           const hasCredential = credentials.some((c) => c.service === service && c.verified);
+          const canConfigure = hasGoogleSheetsCredential && hasMasterSpreadsheet && hasCredential;
 
           return (
-            <div
-              key={service}
-              className="bg-card rounded-lg border border-border p-6"
-            >
+            <div key={service} className="bg-card rounded-lg border border-border p-6">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-foreground">{SERVICE_LABELS[service]}</h3>
                   {mapping ? (
                     <div className="mt-2 space-y-1">
                       <div className="text-sm text-muted-foreground">
-                        <span className="font-medium">Spreadsheet:</span> {mapping.spreadsheet_name}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        <span className="font-medium">Sheet:</span> {mapping.sheet_name}
+                        <span className="font-medium">Destination Sheet:</span> {mapping.sheet_name}
                       </div>
                       <div className="text-xs text-muted-foreground/70 mt-2">
                         Last updated: {new Date(mapping.updated_at).toLocaleString()}
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground mt-2">No sheet configured</p>
+                    <p className="text-sm text-muted-foreground mt-2">No destination sheet configured</p>
                   )}
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => onEdit(service)}
-                  disabled={!hasCredential}
+                  disabled={!canConfigure}
                 >
                   {mapping ? 'Change' : 'Configure'}
                 </Button>
               </div>
-              {!hasCredential && (
+
+              {!hasGoogleSheetsCredential && (
                 <div className="mt-3 text-sm text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded">
-                  Configure credentials first
+                  Configure Google Sheets credentials first
+                </div>
+              )}
+              {hasGoogleSheetsCredential && !hasMasterSpreadsheet && (
+                <div className="mt-3 text-sm text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded">
+                  Select the master spreadsheet first
+                </div>
+              )}
+              {hasGoogleSheetsCredential && hasMasterSpreadsheet && !hasCredential && (
+                <div className="mt-3 text-sm text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2 rounded">
+                  Configure {SERVICE_LABELS[service]} credentials first
                 </div>
               )}
             </div>

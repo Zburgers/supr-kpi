@@ -219,9 +219,14 @@ class ShopifyAdapter implements BaseAdapter<ShopifyDailyMetric, ShopifySyncOptio
   private async upsertToSheet(
     metrics: ShopifyDailyMetric,
     spreadsheetId: string,
-    sheetName: string
+    sheetName: string,
+    credentialJson?: string
   ): Promise<SyncResult<ShopifyDailyMetric>> {
-    await sheetsService.initialize();
+    if (credentialJson) {
+      await sheetsService.initializeWithCredentials(credentialJson);
+    } else {
+      await sheetsService.initialize();
+    }
 
     // Get header row
     const headerValues = await sheetsService.getValues(spreadsheetId, sheetName, 'A1:Z1');
@@ -320,7 +325,7 @@ class ShopifyAdapter implements BaseAdapter<ShopifyDailyMetric, ShopifySyncOptio
   /**
    * Execute sync operation
    */
-  async sync(options: ShopifySyncOptions): Promise<SyncResult<ShopifyDailyMetric>> {
+  async sync(options: ShopifySyncOptions, credentialJson?: string): Promise<SyncResult<ShopifyDailyMetric>> {
     const { storeDomain, accessToken, spreadsheetId, sheetName } = options;
 
     if (!storeDomain) {
@@ -346,7 +351,7 @@ class ShopifyAdapter implements BaseAdapter<ShopifyDailyMetric, ShopifySyncOptio
         revenue: metrics.total_revenue,
       });
 
-      const result = await this.upsertToSheet(metrics, finalSpreadsheetId, finalSheetName);
+      const result = await this.upsertToSheet(metrics, finalSpreadsheetId, finalSheetName, credentialJson);
 
       logger.info('Shopify sync completed', {
         mode: result.mode,

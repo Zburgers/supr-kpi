@@ -43,19 +43,61 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
   events.syncStarted(source, targetDate, jobId);
 
   try {
-    const credentials = getSourceCredentials(source);
-    const sourceConfig = config.sources[source];
+    // Get credentials from the database (new system)
+    let credentialJson: string | undefined;
+    let userId: number | undefined;
+
+    // We need to get the service configuration to find the credential ID
+    // This would require fetching from the service_configs table
+    // For now, we'll use the workflowRunner approach which already handles this
+    const { executeQuery } = await import('../lib/database.js');
+    const { decryptCredential } = await import('../lib/encryption.js');
+
+    // Get the service configuration to find the credential ID
+    const serviceConfigResult = await executeQuery(
+      `SELECT credential_id FROM service_configs
+       WHERE service = $1 AND enabled = true
+       LIMIT 1`,
+      [source]
+    );
 
     let result: ETLJobResult;
 
+    if (serviceConfigResult.rows.length > 0 && serviceConfigResult.rows[0].credential_id) {
+      // Get the credential from the database
+      const credentialId = serviceConfigResult.rows[0].credential_id;
+      const credentialResult = await executeQuery(
+        `SELECT encrypted_data, user_id FROM credentials
+         WHERE id = $1 AND deleted_at IS NULL`,
+        [credentialId]
+      );
+
+      if (credentialResult.rows.length > 0) {
+        const encryptedData = credentialResult.rows[0].encrypted_data;
+        userId = credentialResult.rows[0].user_id;
+        credentialJson = decryptCredential(encryptedData, String(userId));
+      }
+    }
+
+    // If no stored credentials found, throw an error instead of falling back to environment variables
+    if (!credentialJson) {
+      throw new Error(`No stored credentials found for service: ${source}. Please configure credentials in the dashboard.`);
+    }
+
+    // Parse the credential JSON to get the credential data
+    const credentialData = JSON.parse(credentialJson);
+
     switch (source) {
       case 'meta': {
-        const adapterResult = await metaAdapter.sync({
-          accessToken: credentials.accessToken,
+        const options = {
+          // Use credentials from the JSON
+          ...credentialData,
           targetDate,
-          spreadsheetId: job.data.spreadsheetId || sourceConfig.spreadsheetId,
-          sheetName: job.data.sheetName || sourceConfig.sheetName,
-        });
+          spreadsheetId: job.data.spreadsheetId || config.sources.meta.spreadsheetId,
+          sheetName: job.data.sheetName || config.sources.meta.sheetName,
+        };
+
+        const adapterResult = await metaAdapter.sync(options, credentialJson);
         result = {
           success: adapterResult.success,
           jobId,
@@ -72,13 +114,15 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
       }
 
       case 'ga4': {
-        const adapterResult = await ga4Adapter.sync({
-          accessToken: credentials.accessToken,
-          propertyId: credentials.propertyId,
+        const options = {
+          // Use credentials from the JSON
+          ...credentialData,
           targetDate,
-          spreadsheetId: job.data.spreadsheetId || sourceConfig.spreadsheetId,
-          sheetName: job.data.sheetName || sourceConfig.sheetName,
-        });
+          spreadsheetId: job.data.spreadsheetId || config.sources.ga4.spreadsheetId,
+          sheetName: job.data.sheetName || config.sources.ga4.sheetName,
+        };
+
+        const adapterResult = await ga4Adapter.sync(options, credentialJson);
         result = {
           success: adapterResult.success,
           jobId,
@@ -95,13 +139,15 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
       }
 
       case 'shopify': {
-        const adapterResult = await shopifyAdapter.sync({
-          storeDomain: credentials.storeDomain,
-          accessToken: credentials.accessToken,
+        const options = {
+          // Use credentials from the JSON
+          ...credentialData,
           targetDate,
-          spreadsheetId: job.data.spreadsheetId || sourceConfig.spreadsheetId,
-          sheetName: job.data.sheetName || sourceConfig.sheetName,
-        });
+          spreadsheetId: job.data.spreadsheetId || config.sources.shopify.spreadsheetId,
+          sheetName: job.data.sheetName || config.sources.shopify.sheetName,
+        };
+
+        const adapterResult = await shopifyAdapter.sync(options, credentialJson);
         result = {
           success: adapterResult.success,
           jobId,

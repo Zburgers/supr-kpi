@@ -57,14 +57,21 @@ router.post('/set', authenticate, async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // Insert or update mapping
+    // Keep a single mapping per service: delete then insert.
+    await executeQuery(
+      `
+      DELETE FROM sheet_mappings
+      WHERE user_id = $1 AND service = $2;
+      `,
+      [req.user!.userId, service],
+      req.user!.userId
+    );
+
     const result = await executeQuery(
       `
-      INSERT INTO sheet_mappings (user_id, service, spreadsheet_id, sheet_name)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (user_id, service, spreadsheet_id, sheet_name) DO UPDATE
-      SET updated_at = CURRENT_TIMESTAMP
-      RETURNING id, service, spreadsheet_id, sheet_name;
+      INSERT INTO sheet_mappings (user_id, service, spreadsheet_id, sheet_name, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING id, service, spreadsheet_id, sheet_name, created_at, updated_at;
       `,
       [req.user!.userId, service, spreadsheetId, sheetName],
       req.user!.userId
@@ -91,6 +98,8 @@ router.post('/set', authenticate, async (req: Request, res: Response): Promise<v
       service: mapping.service,
       spreadsheetId: mapping.spreadsheet_id,
       sheetName: mapping.sheet_name,
+      createdAt: mapping.created_at,
+      updatedAt: mapping.updated_at,
     };
 
     res.status(201).json(response);
@@ -121,7 +130,7 @@ router.get('/', authenticate, async (req: Request, res: Response): Promise<void>
   try {
     const result = await executeQuery(
       `
-      SELECT id, service, spreadsheet_id, sheet_name
+      SELECT id, service, spreadsheet_id, sheet_name, created_at, updated_at
       FROM sheet_mappings
       WHERE user_id = $1
       ORDER BY service, spreadsheet_id;
@@ -135,6 +144,8 @@ router.get('/', authenticate, async (req: Request, res: Response): Promise<void>
       service: row.service,
       spreadsheetId: row.spreadsheet_id,
       sheetName: row.sheet_name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     }));
 
     const response: ListSheetMappingsResponse = { mappings };

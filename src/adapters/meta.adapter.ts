@@ -222,9 +222,14 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
   private async upsertToSheet(
     metrics: MetaDailyMetric,
     spreadsheetId: string,
-    sheetName: string
+    sheetName: string,
+    credentialJson?: string
   ): Promise<SyncResult<MetaDailyMetric>> {
-    await sheetsService.initialize();
+    if (credentialJson) {
+      await sheetsService.initializeWithCredentials(credentialJson);
+    } else {
+      await sheetsService.initialize();
+    }
 
     // Get header row to find column indices
     const headerValues = await sheetsService.getValues(spreadsheetId, sheetName, 'A1:Z1');
@@ -337,7 +342,7 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
   /**
    * Execute sync operation
    */
-  async sync(options: MetaSyncOptions): Promise<SyncResult<MetaDailyMetric>> {
+  async sync(options: MetaSyncOptions, credentialJson?: string): Promise<SyncResult<MetaDailyMetric>> {
     const { accessToken, targetDate, spreadsheetId, sheetName } = options;
 
     if (!accessToken) {
@@ -360,7 +365,7 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
         revenue: metrics.revenue,
       });
 
-      const result = await this.upsertToSheet(metrics, finalSpreadsheetId, finalSheetName);
+      const result = await this.upsertToSheet(metrics, finalSpreadsheetId, finalSheetName, credentialJson);
 
       logger.info('Meta sync completed', {
         mode: result.mode,

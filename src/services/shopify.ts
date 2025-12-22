@@ -206,10 +206,15 @@ class ShopifyWorkflow {
   private async upsertToSheet(
     metrics: ShopifyMetricsRow,
     spreadsheetId: string,
-    sheetName: string
+    sheetName: string,
+    credentialJson?: string
   ): Promise<AppendResult> {
     console.log("📝 Upserting Shopify row into Google Sheet...");
-    await sheetsService.initialize();
+    if (credentialJson) {
+      await sheetsService.initializeWithCredentials(credentialJson);
+    } else {
+      await sheetsService.initialize();
+    }
 
     const headerValues = await sheetsService.getValues(
       spreadsheetId,
@@ -323,7 +328,8 @@ class ShopifyWorkflow {
   async runWorkflow(
     storeDomain: string,
     accessToken: string,
-    options?: ShopifyRunOptions
+    options?: ShopifyRunOptions,
+    credentialJson?: string
   ): Promise<{
     metrics: ShopifyMetricsRow;
     appendResult: AppendResult;
@@ -345,7 +351,14 @@ class ShopifyWorkflow {
 
     const apiResponse = await this.fetchShopifyQL(storeDomain, accessToken);
     const metrics = this.parseMetrics(apiResponse);
-    const serviceAccount = await sheetsService.verifyServiceAccount();
+
+    let serviceAccount;
+    if (credentialJson) {
+      await sheetsService.initializeWithCredentials(credentialJson);
+      serviceAccount = await sheetsService.verifyServiceAccount();
+    } else {
+      serviceAccount = await sheetsService.verifyServiceAccount();
+    }
 
     const targetSpreadsheetId = options?.spreadsheetId || SHOPIFY_SPREADSHEET_ID;
     const targetSheetName = options?.sheetName || SHOPIFY_SHEET_NAME;
@@ -353,7 +366,8 @@ class ShopifyWorkflow {
     const appendResult = await this.upsertToSheet(
       metrics,
       targetSpreadsheetId,
-      targetSheetName
+      targetSheetName,
+      credentialJson
     );
 
     if (appendResult.id !== undefined) {

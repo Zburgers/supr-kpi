@@ -13,9 +13,19 @@ interface SheetSelectorProps {
   credentialId: string;
   onSelect: (spreadsheetId: string, sheetName: string, spreadsheetName: string) => void;
   isLoading?: boolean;
+  mode?: 'spreadsheet_and_sheet' | 'spreadsheet_only' | 'sheet_only';
+  fixedSpreadsheetId?: string;
+  fixedSpreadsheetName?: string;
 }
 
-export function SheetSelector({ credentialId, onSelect, isLoading: externalLoading }: SheetSelectorProps) {
+export function SheetSelector({
+  credentialId,
+  onSelect,
+  isLoading: externalLoading,
+  mode = 'spreadsheet_and_sheet',
+  fixedSpreadsheetId,
+  fixedSpreadsheetName,
+}: SheetSelectorProps) {
   const [spreadsheets, setSpreadsheets] = useState<Spreadsheet[]>([]);
   const [sheets, setSheets] = useState<SheetType[]>([]);
   const [selectedSpreadsheetId, setSelectedSpreadsheetId] = useState('');
@@ -26,8 +36,16 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
 
   const { getSpreadsheets, getSheets } = useServices();
 
+  // Initialize fixed spreadsheet selection
+  useEffect(() => {
+    if (mode === 'sheet_only' && fixedSpreadsheetId) {
+      setSelectedSpreadsheetId(fixedSpreadsheetId);
+    }
+  }, [mode, fixedSpreadsheetId]);
+
   // Load spreadsheets on mount
   useEffect(() => {
+    if (mode === 'sheet_only') return;
     const loadSpreadsheets = async () => {
       setLoadingSpreadsheets(true);
       setError(null);
@@ -75,7 +93,27 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      
+
+      if (mode === 'spreadsheet_only') {
+        if (!selectedSpreadsheetId) {
+          setError('Please select a spreadsheet');
+          return;
+        }
+        const spreadsheet = spreadsheets.find(s => s.id === selectedSpreadsheetId);
+        const spreadsheetName = spreadsheet?.name || selectedSpreadsheetId;
+        onSelect(selectedSpreadsheetId, '', spreadsheetName);
+        return;
+      }
+
+      if (mode === 'sheet_only') {
+        if (!selectedSpreadsheetId || !selectedSheetName) {
+          setError('Please select a sheet');
+          return;
+        }
+        onSelect(selectedSpreadsheetId, selectedSheetName, fixedSpreadsheetName || selectedSpreadsheetId);
+        return;
+      }
+
       if (!selectedSpreadsheetId || !selectedSheetName) {
         setError('Please select both a spreadsheet and a sheet');
         return;
@@ -86,7 +124,7 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
 
       onSelect(selectedSpreadsheetId, selectedSheetName, spreadsheetName);
     },
-    [selectedSpreadsheetId, selectedSheetName, spreadsheets, onSelect]
+    [mode, selectedSpreadsheetId, selectedSheetName, spreadsheets, onSelect, fixedSpreadsheetName]
   );
 
   const isLoading = externalLoading || loadingSpreadsheets || loadingSheets;
@@ -99,38 +137,40 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label htmlFor="spreadsheet">Select Spreadsheet</Label>
-        {loadingSpreadsheets ? (
-          <div className="flex items-center gap-2 p-3 border border-border rounded-md bg-card text-foreground">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Loading spreadsheets...</span>
-          </div>
-        ) : (
-          <select
-            id="spreadsheet"
-            value={selectedSpreadsheetId}
-            onChange={(e) => setSelectedSpreadsheetId(e.target.value)}
-            className="w-full px-3 py-2 rounded-md border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            disabled={isLoading}
-          >
-            <option value="">-- Select a spreadsheet --</option>
-            {spreadsheets.map((spreadsheet) => (
-              <option key={spreadsheet.id} value={spreadsheet.id}>
-                {spreadsheet.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {spreadsheets.length === 0 && !loadingSpreadsheets && (
-          <p className="text-sm text-muted-foreground flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4" />
-            No spreadsheets found. Make sure your credential has access to Google Sheets.
-          </p>
-        )}
-      </div>
+      {mode !== 'sheet_only' && (
+        <div className="space-y-2">
+          <Label htmlFor="spreadsheet">Select Spreadsheet</Label>
+          {loadingSpreadsheets ? (
+            <div className="flex items-center gap-2 p-3 border border-border rounded-md bg-card text-foreground">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Loading spreadsheets...</span>
+            </div>
+          ) : (
+            <select
+              id="spreadsheet"
+              value={selectedSpreadsheetId}
+              onChange={(e) => setSelectedSpreadsheetId(e.target.value)}
+              className="w-full px-3 py-2 rounded-md border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isLoading}
+            >
+              <option value="">-- Select a spreadsheet --</option>
+              {spreadsheets.map((spreadsheet) => (
+                <option key={spreadsheet.id} value={spreadsheet.id}>
+                  {spreadsheet.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {spreadsheets.length === 0 && !loadingSpreadsheets && (
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4" />
+              No spreadsheets found. Make sure your credential has access to Google Sheets.
+            </p>
+          )}
+        </div>
+      )}
 
-      {selectedSpreadsheetId && (
+      {mode !== 'spreadsheet_only' && selectedSpreadsheetId && (
         <div className="space-y-2">
           <Label htmlFor="sheet">Select Sheet</Label>
           {loadingSheets ? (
@@ -163,18 +203,26 @@ export function SheetSelector({ credentialId, onSelect, isLoading: externalLoadi
         </div>
       )}
 
-      {selectedSpreadsheetId && selectedSheetName && (
+      {selectedSpreadsheetId && (mode === 'spreadsheet_only' || selectedSheetName) && (
         <div className="p-3 bg-primary/10 border border-primary/30 rounded-md">
           <div className="text-sm font-medium text-primary">Selected:</div>
           <div className="text-sm text-primary mt-1">
-            {spreadsheets.find(s => s.id === selectedSpreadsheetId)?.name} → {selectedSheetName}
+            {mode === 'sheet_only'
+              ? `${fixedSpreadsheetName || selectedSpreadsheetId} → ${selectedSheetName}`
+              : mode === 'spreadsheet_only'
+                ? (spreadsheets.find(s => s.id === selectedSpreadsheetId)?.name || selectedSpreadsheetId)
+                : `${spreadsheets.find(s => s.id === selectedSpreadsheetId)?.name} → ${selectedSheetName}`}
           </div>
         </div>
       )}
 
       <Button
         type="submit"
-        disabled={isLoading || !selectedSpreadsheetId || !selectedSheetName}
+        disabled={
+          isLoading ||
+          !selectedSpreadsheetId ||
+          (mode !== 'spreadsheet_only' && !selectedSheetName)
+        }
         className="w-full"
       >
         {isLoading ? (

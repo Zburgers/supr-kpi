@@ -17,11 +17,12 @@ export interface SaveCredentialRequest {
 }
 
 export interface SaveCredentialResponse {
-  credentialId: number;
+  credentialId: string;
   service: string;
   name: string;
+  type: string;
   verified: boolean;
-  createdAt: string;
+  created_at: string;
 }
 
 /**
@@ -29,13 +30,14 @@ export interface SaveCredentialResponse {
  */
 export interface ListCredentialsResponse {
   credentials: {
-    id: number;
+    id: string;
     service: string;
     name: string;
+    type: string;
     verified: boolean;
-    verifiedAt?: string;
-    createdAt: string;
-    maskedPreview?: string; // Partial data for display (e.g., "user@gmail.com")
+    verified_at?: string;
+    created_at: string;
+    updated_at: string;
   }[];
 }
 
@@ -43,13 +45,15 @@ export interface ListCredentialsResponse {
  * GET /api/credentials/{credentialId}
  */
 export interface GetCredentialResponse {
-  id: number;
+  id: string;
   service: string;
   name: string;
+  type: string;
   verified: boolean;
-  verifiedAt?: string;
-  createdAt: string;
-  expiresAt?: string;
+  verified_at?: string;
+  created_at: string;
+  updated_at: string;
+  expires_at?: string;
   encrypted: false; // Always false - never return encrypted data
 }
 
@@ -62,11 +66,12 @@ export interface UpdateCredentialRequest {
 }
 
 export interface UpdateCredentialResponse {
-  id: number;
+  id: string;
   service: string;
   name: string;
+  type: string;
   verified: boolean;
-  updatedAt: string;
+  updated_at: string;
 }
 
 /**
@@ -95,11 +100,11 @@ export interface VerifyCredentialResponse {
  * GET /api/credentials/{credentialId}/verify-status
  */
 export interface VerifyStatusResponse {
-  credentialId: number;
+  credentialId: string;
   verified: boolean;
-  verifiedAt?: string;
-  expiresAt?: string;
-  lastVerifiedAt?: string;
+  verified_at?: string;
+  expires_at?: string;
+  last_verified_at?: string;
 }
 
 // ============================================================================
@@ -160,6 +165,8 @@ export interface SetSheetMappingResponse {
   service: string;
   spreadsheetId: string;
   sheetName: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -171,6 +178,8 @@ export interface ListSheetMappingsResponse {
     service: string;
     spreadsheetId: string;
     sheetName: string;
+    createdAt?: string;
+    updatedAt?: string;
   }[];
 }
 

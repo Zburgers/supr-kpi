@@ -209,14 +209,16 @@ router.post('/save', authenticate, async (req: Request, res: Response): Promise<
     });
 
     const response: SaveCredentialResponse = {
-      credentialId: result.id,
+      credentialId: String(result.id), // Convert to string to match frontend expectation
       service: result.service,
       name: result.name,
+      type: 'service_account', // Default type
       verified: result.verified,
-      createdAt: result.created_at,
+      created_at: result.created_at,
     };
 
-    res.status(201).json(response);
+    // Return in standard API response format that frontend expects
+    res.status(201).json({ success: true, data: response });
   } catch (error) {
     logger.error('Failed to save credential', { error: String(error) });
     await logAudit(
@@ -257,17 +259,19 @@ router.get('/list', authenticate, async (req: Request, res: Response): Promise<v
     const credentials = [];
     for (const cred of result.rows) {
       credentials.push({
-        id: cred.id,
+        id: String(cred.id), // Convert to string to match frontend expectation
         service: cred.service,
         name: cred.name,
+        type: 'service_account', // Default type, could be stored in DB later if needed
         verified: cred.verified,
-        verifiedAt: cred.verified_at,
-        createdAt: cred.created_at,
-        maskedPreview: maskCredential(`${cred.service}-${cred.id}`),
+        verified_at: cred.verified_at,
+        created_at: cred.created_at,
+        updated_at: cred.updated_at || cred.created_at, // Use updated_at if available, otherwise created_at
       });
     }
 
-    res.json({ credentials } as ListCredentialsResponse);
+    // Return in standard API response format that frontend expects
+    res.json({ success: true, data: credentials });
   } catch (error) {
     logger.error('Failed to list credentials', { error: String(error) });
 
@@ -308,17 +312,20 @@ router.get('/:credentialId', authenticate, async (req: Request, res: Response): 
 
     const cred = result.rows[0];
     const response: GetCredentialResponse = {
-      id: cred.id,
+      id: String(cred.id), // Convert to string to match frontend expectation
       service: cred.service,
       name: cred.name,
+      type: 'service_account', // Default type
       verified: cred.verified,
-      verifiedAt: cred.verified_at,
-      createdAt: cred.created_at,
-      expiresAt: cred.expires_at,
+      verified_at: cred.verified_at,
+      created_at: cred.created_at,
+      updated_at: cred.updated_at || cred.created_at,
+      expires_at: cred.expires_at,
       encrypted: false,
     };
 
-    res.json(response);
+    // Return in standard API response format that frontend expects
+    res.json({ success: true, data: response });
   } catch (error) {
     logger.error('Failed to get credential', { error: String(error) });
 
@@ -409,14 +416,16 @@ router.put('/:credentialId', authenticate, async (req: Request, res: Response): 
     });
 
     const response: UpdateCredentialResponse = {
-      id: cred.id,
+      id: String(cred.id), // Convert to string to match frontend expectation
       service: cred.service,
       name: cred.name,
+      type: 'service_account', // Default type
       verified: cred.verified,
-      updatedAt: cred.updated_at,
+      updated_at: cred.updated_at,
     };
 
-    res.json(response);
+    // Return in standard API response format that frontend expects
+    res.json({ success: true, data: response });
   } catch (error) {
     logger.error('Failed to update credential', { error: String(error) });
     await logAudit(
@@ -645,7 +654,8 @@ router.post(
           expiresAt,
         };
 
-        res.json(response);
+        // Return in standard API response format that frontend expects
+        res.json({ success: true, data: response });
       } catch (error) {
         logger.error('Credential verification error', { error: String(error) });
 
@@ -707,14 +717,15 @@ router.get(
 
       const cred = result.rows[0];
       const response: VerifyStatusResponse = {
-        credentialId: cred.id,
+        credentialId: String(cred.id), // Convert to string to match frontend expectation
         verified: cred.verified,
-        verifiedAt: cred.verified_at,
-        expiresAt: cred.expires_at,
-        lastVerifiedAt: cred.verified_at,
+        verified_at: cred.verified_at,
+        expires_at: cred.expires_at,
+        last_verified_at: cred.verified_at,
       };
 
-      res.json(response);
+      // Return in standard API response format that frontend expects
+      res.json({ success: true, data: response });
     } catch (error) {
       logger.error('Failed to get verification status', { error: String(error) });
 

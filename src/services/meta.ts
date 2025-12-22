@@ -549,19 +549,25 @@ class MetaInsightsWorkflow {
    * Uses service account authentication via sheetsService
    *
    * @param metrics - Normalized metrics to append
+   * @param credentialJson - Optional credential JSON from database
    * @returns Success status
    */
   private async appendToSheet(
     metrics: MetaInsightRow,
     spreadsheetId: string,
-    sheetName: string
+    sheetName: string,
+    credentialJson?: string
   ): Promise<boolean> {
     console.log("📝 Appending to Google Sheet...");
     console.log(`  Spreadsheet ID: ${spreadsheetId}`);
     console.log(`  Sheet Name: ${sheetName}`);
 
     try {
-      await sheetsService.initialize();
+      if (credentialJson) {
+        await sheetsService.initializeWithCredentials(credentialJson);
+      } else {
+        await sheetsService.initialize();
+      }
       console.log("  ✓ Sheets service initialized");
 
       const row = this.toSheetRow(metrics);
@@ -593,14 +599,19 @@ class MetaInsightsWorkflow {
   private async upsertToSheet(
     metrics: MetaInsightRow,
     spreadsheetId: string,
-    sheetName: string
+    sheetName: string,
+    credentialJson?: string
   ): Promise<AppendResult> {
     console.log("📝 Upserting into Google Sheet (by date)...");
     console.log(`  Spreadsheet ID: ${spreadsheetId}`);
     console.log(`  Sheet Name: ${sheetName}`);
 
     try {
-      await sheetsService.initialize();
+      if (credentialJson) {
+        await sheetsService.initializeWithCredentials(credentialJson);
+      } else {
+        await sheetsService.initialize();
+      }
       console.log("  ✓ Sheets service initialized");
 
       const headerValues = await sheetsService.getValues(
@@ -729,12 +740,15 @@ class MetaInsightsWorkflow {
    * Additional steps can be added here for extended workflows
    *
    * @param accessToken - Meta Graph API access token
+   * @param options - Optional workflow options
+   * @param credentialJson - Optional credential JSON from database
    * @returns Normalized metrics that were appended
    * @throws Error if any step fails
    */
   async runWorkflow(
     accessToken: string,
-    options?: MetaRunOptions
+    options?: MetaRunOptions,
+    credentialJson?: string
   ): Promise<MetaWorkflowResult> {
     console.log("=".repeat(70));
     console.log("🚀 Starting Meta insights workflow...");
@@ -756,7 +770,13 @@ class MetaInsightsWorkflow {
       const metrics = this.parseMetrics(apiResponse);
 
       // STEP 2.5: Verify service account so we can report status even if append fails
-      const serviceAccount = await sheetsService.verifyServiceAccount();
+      let serviceAccount;
+      if (credentialJson) {
+        await sheetsService.initializeWithCredentials(credentialJson);
+        serviceAccount = await sheetsService.verifyServiceAccount();
+      } else {
+        serviceAccount = await sheetsService.verifyServiceAccount();
+      }
 
       // STEP 3 & 4: Format and append to sheet
       console.log("\n[STEP 3] Formatting for sheet");
@@ -770,7 +790,8 @@ class MetaInsightsWorkflow {
       const appendResult = await this.upsertToSheet(
         metrics,
         targetSpreadsheetId,
-        targetSheetName
+        targetSheetName,
+        credentialJson
       );
       if (appendResult.id !== undefined) {
         metrics.id = appendResult.id;

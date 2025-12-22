@@ -15,6 +15,7 @@ export interface Credential {
   verified_at: string | null;
   created_at: string;
   updated_at: string;
+  expires_at?: string | null;
   // Never includes actual credential data
   metadata?: {
     email?: string;

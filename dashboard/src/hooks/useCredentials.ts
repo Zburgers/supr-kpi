@@ -20,13 +20,18 @@ export function useCredentials() {
     setLoading(true);
     setError(null);
     try {
+      console.log('[useCredentials] Fetching credentials list...');
       const result = await fetchApi<Credential[]>('/credentials/list');
+      console.log('[useCredentials] Response received:', result);
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch credentials');
       }
-      return (result as { success: true; data: Credential[] }).data || [];
+      const credentials = (result as { success: true; data: Credential[] }).data || [];
+      console.log('[useCredentials] Fetched credentials:', credentials);
+      return credentials;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch credentials';
+      console.error('[useCredentials] Error:', message, err);
       setError(message);
       throw err;
     } finally {
@@ -46,20 +51,39 @@ export function useCredentials() {
           credentialJson: request.credentials,
         };
 
-        const result = await fetchApi<Credential>('/credentials/save', {
+        console.log('[useCredentials] Saving credential:', { service: request.service, name: request.name });
+        const result = await fetchApi<any>('/credentials/save', {
           method: 'POST',
           body: JSON.stringify(requestBody),
         });
+        console.log('[useCredentials] Save response:', result);
         if (!result.success) {
           throw new Error(result.error || 'Failed to save credential');
         }
-        const data = (result as { success: true; data: Credential }).data;
-        if (!data) {
+
+        const responseData = (result as { success: true; data: any }).data;
+        if (!responseData) {
           throw new Error('No credential data returned');
         }
-        return data;
+
+        // Map backend response format to frontend Credential format
+        const credential: Credential = {
+          id: responseData.credentialId || responseData.id,
+          service: responseData.service,
+          name: responseData.name,
+          type: responseData.type,
+          verified: responseData.verified,
+          verified_at: responseData.verified_at || null,
+          created_at: responseData.created_at,
+          updated_at: responseData.updated_at || responseData.created_at,
+          metadata: responseData.metadata,
+        };
+
+        console.log('[useCredentials] Credential saved successfully:', credential);
+        return credential;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to save credential';
+        console.error('[useCredentials] Save error:', message, err);
         setError(message);
         throw err;
       } finally {
@@ -71,6 +95,10 @@ export function useCredentials() {
 
   const verifyCredential = useCallback(
     async (credentialId: string): Promise<CredentialVerificationResponse> => {
+      if (!credentialId || credentialId === 'undefined' || credentialId === 'null') {
+        throw new Error('Invalid credential ID provided for verification');
+      }
+
       setLoading(true);
       setError(null);
       try {
@@ -95,6 +123,10 @@ export function useCredentials() {
 
   const updateCredential = useCallback(
     async (credentialId: string, request: Partial<CredentialCreateRequest>): Promise<Credential> => {
+      if (!credentialId || credentialId === 'undefined' || credentialId === 'null') {
+        throw new Error('Invalid credential ID provided for update');
+      }
+
       setLoading(true);
       setError(null);
       try {
@@ -104,18 +136,32 @@ export function useCredentials() {
         if (request.name !== undefined) requestBody.credentialName = request.name;
         if (request.credentials !== undefined) requestBody.credentialJson = request.credentials;
 
-        const result = await fetchApi<Credential>(`/credentials/${credentialId}`, {
+        const result = await fetchApi<any>(`/credentials/${credentialId}`, {
           method: 'PUT',
           body: JSON.stringify(requestBody),
         });
         if (!result.success) {
           throw new Error(result.error || 'Failed to update credential');
         }
-        const data = (result as { success: true; data: Credential }).data;
-        if (!data) {
+        const responseData = (result as { success: true; data: any }).data;
+        if (!responseData) {
           throw new Error('No credential data returned');
         }
-        return data;
+
+        // Map backend response format to frontend Credential format
+        const credential: Credential = {
+          id: responseData.id,
+          service: responseData.service,
+          name: responseData.name,
+          type: responseData.type,
+          verified: responseData.verified,
+          verified_at: responseData.verified_at || null,
+          created_at: responseData.created_at,
+          updated_at: responseData.updated_at || responseData.created_at,
+          metadata: responseData.metadata,
+        };
+
+        return credential;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update credential';
         setError(message);
@@ -128,6 +174,10 @@ export function useCredentials() {
   );
 
   const deleteCredential = useCallback(async (credentialId: string): Promise<void> => {
+    if (!credentialId || credentialId === 'undefined' || credentialId === 'null') {
+      throw new Error('Invalid credential ID provided for deletion');
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -148,18 +198,37 @@ export function useCredentials() {
 
   const getCredentialStatus = useCallback(
     async (credentialId: string): Promise<Credential> => {
+      if (!credentialId || credentialId === 'undefined' || credentialId === 'null') {
+        throw new Error('Invalid credential ID provided for status check');
+      }
+
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchApi<Credential>(`/credentials/${credentialId}`);
+        const result = await fetchApi<any>(`/credentials/${credentialId}`);
         if (!result.success) {
           throw new Error(result.error || 'Failed to fetch credential status');
         }
-        const data = (result as { success: true; data: Credential }).data;
-        if (!data) {
+        const responseData = (result as { success: true; data: any }).data;
+        if (!responseData) {
           throw new Error('No credential data returned');
         }
-        return data;
+
+        // Map backend response format to frontend Credential format
+        const credential: Credential = {
+          id: responseData.id,
+          service: responseData.service,
+          name: responseData.name,
+          type: responseData.type,
+          verified: responseData.verified,
+          verified_at: responseData.verified_at || null,
+          created_at: responseData.created_at,
+          updated_at: responseData.updated_at || responseData.created_at,
+          expires_at: responseData.expires_at,
+          metadata: responseData.metadata,
+        };
+
+        return credential;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch credential status';
         setError(message);

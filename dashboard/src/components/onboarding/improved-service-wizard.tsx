@@ -90,6 +90,7 @@ export function ImprovedServiceWizard({ onComplete, onSkip }: ImprovedServiceWiz
           setCurrentStep('service_select');
         }
       } catch (err) {
+        console.warn('Failed to check existing credentials:', err);
         // Ignore - no existing credentials
       }
     }
@@ -172,26 +173,36 @@ interface GoogleSheetsSetupProps {
 function GoogleSheetsSetup({ onComplete, onSkip, saveCredential }: GoogleSheetsSetupProps) {
   const [step, setStep] = useState<'input' | 'verify'>('input');
   const [credentialId, setCredentialId] = useState<string | null>(null);
+  const [credentialName, setCredentialName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [savingProgress, setSavingProgress] = useState<string>('');
 
   const handleCredentialSave = async (data: { name: string; type: CredentialType; credentials: string }) => {
     setError(null);
+    setSavingProgress('Saving credentials...');
     try {
+      console.log('[Onboarding] Saving Google Sheets credential:', { service: 'google_sheets', name: data.name });
       const credential = await saveCredential({
         service: 'google_sheets' as ServiceType,
         name: data.name,
         type: data.type,
         credentials: data.credentials,
       });
+      console.log('[Onboarding] Credential saved successfully:', credential);
       setCredentialId(credential.id);
+      setCredentialName(credential.name);
+      setSavingProgress('Credential saved! Verifying...');
       setStep('verify');
     } catch (err) {
+      console.error('[Onboarding] Failed to save credential:', err);
+      setSavingProgress('');
       setError(err instanceof Error ? err.message : 'Failed to save credentials');
     }
   };
 
   const handleVerified = () => {
     if (credentialId) {
+      console.log('[Onboarding] Google Sheets credential verified, completing setup');
       onComplete(credentialId);
     }
   };
@@ -216,6 +227,13 @@ function GoogleSheetsSetup({ onComplete, onSkip, saveCredential }: GoogleSheetsS
           </div>
         )}
 
+        {savingProgress && (
+          <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-md flex items-center gap-2">
+            <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+            <span className="text-sm text-blue-500">{savingProgress}</span>
+          </div>
+        )}
+
         {step === 'input' && (
           <>
             <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
@@ -235,12 +253,25 @@ function GoogleSheetsSetup({ onComplete, onSkip, saveCredential }: GoogleSheetsS
         )}
 
         {step === 'verify' && credentialId && (
-          <CredentialVerification
-            credentialId={credentialId}
-            service="google_sheets"
-            onSuccess={handleVerified}
-            onError={setError}
-          />
+          <div className="space-y-4">
+            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <div className="flex items-start gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="font-medium text-green-600">Credential Saved</h4>
+                  <p className="text-sm text-green-500/80 mt-1">
+                    {credentialName}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <CredentialVerification
+              credentialId={credentialId}
+              service="google_sheets"
+              onSuccess={handleVerified}
+              onError={setError}
+            />
+          </div>
         )}
 
         {onSkip && step === 'input' && (
@@ -358,29 +389,39 @@ function AnalyticsServiceSetup({
 }: AnalyticsServiceSetupProps) {
   const [step, setStep] = useState<'credentials' | 'verify' | 'sheet'>('credentials');
   const [credentialId, setCredentialId] = useState<string | null>(null);
+  const [credentialName, setCredentialName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savingProgress, setSavingProgress] = useState('');
 
   const serviceLabel = ANALYTICS_SERVICES.find(s => s.value === service)?.label || service;
   const schema = SCHEMA_INFO[service];
 
   const handleCredentialSave = async (data: { name: string; type: CredentialType; credentials: string }) => {
     setError(null);
+    setSavingProgress('Saving credentials...');
     try {
+      console.log(`[Onboarding] Saving ${service} credential:`, { name: data.name });
       const credential = await saveCredential({
         service,
         name: data.name,
         type: data.type,
         credentials: data.credentials,
       });
+      console.log(`[Onboarding] ${service} credential saved:`, credential);
       setCredentialId(credential.id);
+      setCredentialName(credential.name);
+      setSavingProgress('Credential saved! Verifying...');
       setStep('verify');
     } catch (err) {
+      console.error(`[Onboarding] Failed to save ${service} credential:`, err);
+      setSavingProgress('');
       setError(err instanceof Error ? err.message : 'Failed to save credentials');
     }
   };
 
   const handleVerified = () => {
+    setSavingProgress('');
     setStep('sheet');
   };
 
@@ -389,16 +430,22 @@ function AnalyticsServiceSetup({
     
     setSaving(true);
     setError(null);
+    setSavingProgress('Saving sheet configuration...');
     
     try {
+      console.log(`[Onboarding] Saving sheet mapping for ${service}:`, { spreadsheetId, sheetName });
       await saveSheetMapping({
         service,
         credential_id: credentialId,
         spreadsheet_id: spreadsheetId,
         sheet_name: sheetName,
       });
+      console.log(`[Onboarding] Sheet mapping saved for ${service}`);
+      setSavingProgress('');
       onComplete();
     } catch (err) {
+      console.error(`[Onboarding] Failed to save sheet mapping for ${service}:`, err);
+      setSavingProgress('');
       setError(err instanceof Error ? err.message : 'Failed to save sheet mapping');
     } finally {
       setSaving(false);
@@ -436,6 +483,13 @@ function AnalyticsServiceSetup({
           </div>
         )}
 
+        {savingProgress && (
+          <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-md flex items-center gap-2">
+            <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+            <span className="text-sm text-blue-500">{savingProgress}</span>
+          </div>
+        )}
+
         {step === 'credentials' && (
           <>
             <ServiceCredentialHelp service={service} />
@@ -448,12 +502,25 @@ function AnalyticsServiceSetup({
         )}
 
         {step === 'verify' && credentialId && (
-          <CredentialVerification
-            credentialId={credentialId}
-            service={service}
-            onSuccess={handleVerified}
-            onError={setError}
-          />
+          <div className="space-y-4">
+            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <div className="flex items-start gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="font-medium text-green-600">Credential Saved</h4>
+                  <p className="text-sm text-green-500/80 mt-1">
+                    {credentialName}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <CredentialVerification
+              credentialId={credentialId}
+              service={service}
+              onSuccess={handleVerified}
+              onError={setError}
+            />
+          </div>
         )}
 
         {step === 'sheet' && (

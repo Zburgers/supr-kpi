@@ -185,9 +185,14 @@ class Ga4Adapter implements BaseAdapter<Ga4DailyMetric, Ga4SyncOptions> {
   private async upsertToSheet(
     metrics: Ga4DailyMetric,
     spreadsheetId: string,
-    sheetName: string
+    sheetName: string,
+    credentialJson?: string
   ): Promise<SyncResult<Ga4DailyMetric>> {
-    await sheetsService.initialize();
+    if (credentialJson) {
+      await sheetsService.initializeWithCredentials(credentialJson);
+    } else {
+      await sheetsService.initialize();
+    }
 
     // Get header row
     const headerValues = await sheetsService.getValues(spreadsheetId, sheetName, 'A1:Z1');
@@ -277,7 +282,7 @@ class Ga4Adapter implements BaseAdapter<Ga4DailyMetric, Ga4SyncOptions> {
   /**
    * Execute sync operation
    */
-  async sync(options: Ga4SyncOptions): Promise<SyncResult<Ga4DailyMetric>> {
+  async sync(options: Ga4SyncOptions, credentialJson?: string): Promise<SyncResult<Ga4DailyMetric>> {
     const { accessToken, propertyId, spreadsheetId, sheetName } = options;
 
     if (!accessToken) {
@@ -303,7 +308,7 @@ class Ga4Adapter implements BaseAdapter<Ga4DailyMetric, Ga4SyncOptions> {
         revenue: metrics.revenue,
       });
 
-      const result = await this.upsertToSheet(metrics, finalSpreadsheetId, finalSheetName);
+      const result = await this.upsertToSheet(metrics, finalSpreadsheetId, finalSheetName, credentialJson);
 
       logger.info('GA4 sync completed', {
         mode: result.mode,

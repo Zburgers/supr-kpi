@@ -3,7 +3,7 @@ import { useUser } from '@clerk/clerk-react'
 import { ThemeProvider } from '@/components/theme-provider'
 import { OnboardingProvider } from '@/contexts/onboarding-context'
 import { AuthGuard } from '@/components/auth'
-import { Dashboard } from '@/pages/dashboard'
+import { Dashboard } from '@/components/dashboard/dashboard'
 import { Onboarding } from '@/pages/onboarding'
 import { Settings } from '@/pages/settings'
 import { useAuthenticatedApi } from '@/hooks/use-authenticated-api'
@@ -14,10 +14,10 @@ import './index.css'
 function AppContent() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname)
   const { isLoaded: clerkLoaded } = useUser()
-  
+
   // Set up authenticated API calls
   useAuthenticatedApi()
-  
+
   // Get user status from our backend (includes onboarding status)
   const { loading: statusLoading, needsOnboarding } = useUserStatus()
 

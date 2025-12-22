@@ -39,7 +39,7 @@ RUN apk add --no-cache python3 make g++
 COPY package*.json ./
 
 # Install all dependencies (including dev for build)
-RUN if [ -f package-lock.json ]; then npm ci --prefer-offline; else npm install; fi
+RUN npm ci --prefer-offline 2>/dev/null || npm install
 
 # ============================================================================
 # Stage 2: Build
@@ -81,7 +81,7 @@ ENV NODE_ENV=production \
 
 # Install production dependencies only
 COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --only=production --prefer-offline; else npm install --only=production; fi && \
+RUN npm ci --production --prefer-offline 2>/dev/null || npm install --production && \
     npm cache clean --force && \
     rm -rf /root/.npm /tmp/*
 

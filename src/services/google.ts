@@ -134,9 +134,14 @@ class GoogleAnalyticsWorkflow {
   private async upsertIfMissing(
     metrics: GoogleAnalyticsRow,
     spreadsheetId: string,
-    sheetName: string
+    sheetName: string,
+    credentialJson?: string
   ): Promise<AppendResult> {
-    await sheetsService.initialize();
+    if (credentialJson) {
+      await sheetsService.initializeWithCredentials(credentialJson);
+    } else {
+      await sheetsService.initialize();
+    }
 
     const headerValues = await sheetsService.getValues(
       spreadsheetId,
@@ -234,7 +239,8 @@ class GoogleAnalyticsWorkflow {
   async runWorkflow(
     accessToken: string,
     propertyId: string,
-    options?: GoogleRunOptions
+    options?: GoogleRunOptions,
+    credentialJson?: string
   ): Promise<{
     metrics: GoogleAnalyticsRow;
     appendResult: AppendResult;
@@ -252,7 +258,14 @@ class GoogleAnalyticsWorkflow {
 
     const apiResponse = await this.fetchGaReport(accessToken, propertyId);
     const metrics = this.parseMetrics(apiResponse);
-    const serviceAccount = await sheetsService.verifyServiceAccount();
+
+    let serviceAccount;
+    if (credentialJson) {
+      await sheetsService.initializeWithCredentials(credentialJson);
+      serviceAccount = await sheetsService.verifyServiceAccount();
+    } else {
+      serviceAccount = await sheetsService.verifyServiceAccount();
+    }
 
     const targetSpreadsheetId = options?.spreadsheetId || GA_SPREADSHEET_ID;
     const targetSheetName = options?.sheetName || GA_SHEET_NAME;
@@ -260,7 +273,8 @@ class GoogleAnalyticsWorkflow {
     const appendResult = await this.upsertIfMissing(
       metrics,
       targetSpreadsheetId,
-      targetSheetName
+      targetSheetName,
+      credentialJson
     );
 
     if (appendResult.id !== undefined) {
