@@ -1,13 +1,13 @@
 /**
  * Sheet Mapping Routes
- * 
+ *
  * Handles:
  * - Setting Google Sheets spreadsheet mappings
  * - Listing sheet mappings
- * 
+ *
  * These mappings allow users to specify which spreadsheet and sheet
  * each service's data should be written to.
- * 
+ *
  * Security:
  * - All endpoints require JWT authentication
  * - All queries filtered by user_id (RLS)
@@ -123,9 +123,10 @@ router.get('/', authenticate, async (req: Request, res: Response): Promise<void>
       `
       SELECT id, service, spreadsheet_id, sheet_name
       FROM sheet_mappings
+      WHERE user_id = $1
       ORDER BY service, spreadsheet_id;
       `,
-      [],
+      [req.user!.userId],
       req.user!.userId
     );
 

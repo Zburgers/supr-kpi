@@ -154,6 +154,37 @@ router.post('/save', authenticate, async (req: Request, res: Response): Promise<
       return;
     }
 
+    // Check for duplicate credential data for this user and service
+    const existingCredentials = await executeQuery(
+      `
+      SELECT id, encrypted_data
+      FROM credentials
+      WHERE user_id = $1 AND service = $2 AND deleted_at IS NULL;
+      `,
+      [req.user!.userId, service],
+      req.user!.userId
+    );
+
+    // Decrypt each existing credential and compare with the new one
+    for (const existing of existingCredentials.rows) {
+      try {
+        const decryptedExisting = decryptCredential(existing.encrypted_data, String(req.user!.userId));
+        if (decryptedExisting === credentialJson) {
+          res.status(409).json({
+            error: 'This credential already exists',
+            code: ErrorCode.DUPLICATE_CREDENTIAL,
+          } as ErrorResponse);
+          return;
+        }
+      } catch (error) {
+        // If decryption fails for some reason, continue checking other credentials
+        logger.warn('Failed to decrypt existing credential for duplicate check', {
+          credentialId: existing.id,
+          error: String(error),
+        });
+      }
+    }
+
     // Encrypt credential
     const encryptedData = encryptCredential(credentialJson, String(req.user!.userId));
 
@@ -215,10 +246,10 @@ router.get('/list', authenticate, async (req: Request, res: Response): Promise<v
       `
       SELECT id, service, name, verified, verified_at, created_at
       FROM credentials
-      WHERE deleted_at IS NULL
+      WHERE user_id = $1 AND deleted_at IS NULL
       ORDER BY created_at DESC;
       `,
-      [],
+      [req.user!.userId],
       req.user!.userId
     );
 
@@ -261,9 +292,9 @@ router.get('/:credentialId', authenticate, async (req: Request, res: Response): 
       `
       SELECT id, service, name, verified, verified_at, expires_at, created_at
       FROM credentials
-      WHERE id = $1 AND deleted_at IS NULL;
+      WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;
       `,
-      [credentialId],
+      [credentialId, req.user!.userId],
       req.user!.userId
     );
 
@@ -311,8 +342,8 @@ router.put('/:credentialId', authenticate, async (req: Request, res: Response): 
 
     // Check credential exists and belongs to user
     const checkResult = await executeQuery(
-      `SELECT service FROM credentials WHERE id = $1 AND deleted_at IS NULL;`,
-      [credentialId],
+      `SELECT service FROM credentials WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;`,
+      [credentialId, req.user!.userId],
       req.user!.userId
     );
 
@@ -418,10 +449,10 @@ router.delete(
 
       // Soft delete credential
       const result = await executeTransaction(async (client) => {
-        // Check credential exists
+        // Check credential exists and belongs to user
         const checkResult = await client.query(
-          `SELECT service FROM credentials WHERE id = $1 AND deleted_at IS NULL;`,
-          [credentialId]
+          `SELECT service FROM credentials WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;`,
+          [credentialId, req.user!.userId]
         );
 
         if (checkResult.rows.length === 0) {
@@ -435,9 +466,9 @@ router.delete(
           `
           UPDATE credentials
           SET deleted_at = CURRENT_TIMESTAMP
-          WHERE id = $1;
+          WHERE id = $1 AND user_id = $2;
           `,
-          [credentialId]
+          [credentialId, req.user!.userId]
         );
 
         // Delete associated service configs
@@ -494,9 +525,9 @@ router.post(
         `
         SELECT id, service, name, encrypted_data
         FROM credentials
-        WHERE id = $1 AND deleted_at IS NULL;
+        WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;
         `,
-        [credentialId],
+        [credentialId, req.user!.userId],
         req.user!.userId
       );
 
@@ -522,13 +553,39 @@ router.post(
 
         switch (credential.service) {
           case 'google_sheets': {
-            // Verify Google Sheets credential by testing the client
-            // For now, we'll do basic validation
-            verified =
-              credentialData.private_key &&
-              credentialData.client_email &&
-              credentialData.project_id;
-            connectedAs = credentialData.client_email || 'Service Account';
+            // Verify Google Sheets credential by making an actual API call
+            try {
+              // Initialize Google Sheets authentication with the provided credentials
+              const { google } = await import('googleapis');
+              const { JWT } = await import('google-auth-library');
+
+              const auth = new JWT({
+                email: credentialData.client_email,
+                key: credentialData.private_key,
+                scopes: [
+                  'https://www.googleapis.com/auth/spreadsheets.readonly',
+                  'https://www.googleapis.com/auth/drive.metadata.readonly',
+                ],
+              });
+
+              // Test the authentication by making a simple API call
+              const sheets = google.sheets({ version: 'v4', auth: auth as any });
+
+              // Make a test request to see if credentials work
+              // Using a simple request to get about information
+              await auth.authorize();
+
+              // If we get here, the credentials are valid
+              verified = true;
+              connectedAs = credentialData.client_email || 'Service Account';
+            } catch (authError) {
+              logger.error('Google Sheets credential verification failed', {
+                error: authError instanceof Error ? authError.message : String(authError),
+                credentialId
+              });
+              verified = false;
+              connectedAs = 'Service Account';
+            }
             break;
           }
 
@@ -634,9 +691,9 @@ router.get(
         `
         SELECT id, verified, verified_at, expires_at
         FROM credentials
-        WHERE id = $1 AND deleted_at IS NULL;
+        WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL;
         `,
-        [credentialId],
+        [credentialId, req.user!.userId],
         req.user!.userId
       );
 

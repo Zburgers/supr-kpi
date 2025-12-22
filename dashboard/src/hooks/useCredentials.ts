@@ -1,6 +1,6 @@
 /**
  * Custom hook for managing credentials
- * 
+ *
  * Uses centralized fetchApi for authentication (Clerk JWT)
  */
 
@@ -20,7 +20,7 @@ export function useCredentials() {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchApi<Credential[]>('/credentials');
+      const result = await fetchApi<Credential[]>('/credentials/list');
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch credentials');
       }
@@ -39,9 +39,16 @@ export function useCredentials() {
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchApi<Credential>('/credentials', {
+        // Map frontend fields to backend fields
+        const requestBody = {
+          service: request.service,
+          credentialName: request.name,
+          credentialJson: request.credentials,
+        };
+
+        const result = await fetchApi<Credential>('/credentials/save', {
           method: 'POST',
-          body: JSON.stringify(request),
+          body: JSON.stringify(requestBody),
         });
         if (!result.success) {
           throw new Error(result.error || 'Failed to save credential');
@@ -91,9 +98,15 @@ export function useCredentials() {
       setLoading(true);
       setError(null);
       try {
+        // Map frontend fields to backend fields (only include fields that are provided)
+        const requestBody: any = {};
+        if (request.service !== undefined) requestBody.service = request.service;
+        if (request.name !== undefined) requestBody.credentialName = request.name;
+        if (request.credentials !== undefined) requestBody.credentialJson = request.credentials;
+
         const result = await fetchApi<Credential>(`/credentials/${credentialId}`, {
           method: 'PUT',
-          body: JSON.stringify(request),
+          body: JSON.stringify(requestBody),
         });
         if (!result.success) {
           throw new Error(result.error || 'Failed to update credential');

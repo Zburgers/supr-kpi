@@ -1,8 +1,8 @@
 /**
  * Activity Log Routes
- * 
+ *
  * Provides access to sync activity history and logs
- * 
+ *
  * @module routes/activity-log
  */
 
@@ -19,8 +19,8 @@ interface ActivityLogEntry {
   service: string;
   action: string;
   status: 'success' | 'failure' | 'partial';
-  record_count: number | null;
-  duration_ms: number | null;
+  record_count: number;
+  duration: number; // seconds
   error_message: string | null;
   metadata: Record<string, unknown> | null;
 }
@@ -70,40 +70,40 @@ router.get(
       }
 
       if (filters.startDate) {
-        conditions.push(`timestamp >= $${paramIndex++}`);
+        conditions.push(`created_at >= $${paramIndex++}`);
         params.push(filters.startDate);
       }
 
       if (filters.endDate) {
-        conditions.push(`timestamp <= $${paramIndex++}`);
+        conditions.push(`created_at <= $${paramIndex++}`);
         params.push(filters.endDate);
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-      
+
       // Get total count
-      const countQuery = `SELECT COUNT(*) as total FROM activity_log ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) as total FROM audit_logs ${whereClause}`;
       const countResult = await executeQuery(countQuery, params, req.user!.userId);
       const total = parseInt(countResult.rows[0]?.total || '0', 10);
 
       // Get paginated entries
       const limit = Math.min(filters.limit || 50, 100);
       const offset = filters.offset || 0;
-      
+
       const dataQuery = `
-        SELECT 
-          id,
-          timestamp,
+        SELECT
+          id::text,
+          created_at as timestamp,
           service,
           action,
           status,
-          record_count,
-          duration_ms,
+          NULL as record_count,
+          NULL as duration_ms,
           error_message,
           metadata
-        FROM activity_log
+        FROM audit_logs
         ${whereClause}
-        ORDER BY timestamp DESC
+        ORDER BY created_at DESC
         LIMIT $${paramIndex++} OFFSET $${paramIndex}
       `;
       params.push(limit, offset);
@@ -112,14 +112,14 @@ router.get(
 
       const entries: ActivityLogEntry[] = dataResult.rows.map(row => ({
         id: row.id,
-        timestamp: row.timestamp,
-        service: row.service,
+        timestamp: row.timestamp || new Date().toISOString(),
+        service: row.service || 'unknown',
         action: row.action || 'sync',
         status: row.status || 'success',
-        record_count: row.record_count,
-        duration_ms: row.duration_ms,
-        error_message: row.error_message,
-        metadata: row.metadata,
+        record_count: row.record_count || 0,
+        duration: (row.duration_ms ? Math.floor(row.duration_ms / 1000) : 0), // Convert ms to seconds
+        error_message: row.error_message || undefined,
+        metadata: row.metadata || null,
       }));
 
       res.json({
@@ -133,7 +133,7 @@ router.get(
       });
     } catch (error) {
       // If table doesn't exist yet, return empty results
-      if ((error as Error).message?.includes('activity_log')) {
+      if ((error as Error).message?.includes('audit_logs')) {
         res.json({
           success: true,
           data: {
@@ -146,7 +146,7 @@ router.get(
         return;
       }
 
-      logger.error('Failed to get activity log', { 
+      logger.error('Failed to get activity log', {
         error: error instanceof Error ? error.message : String(error),
         userId: req.user?.userId,
       });
