@@ -594,9 +594,15 @@ router.post(
 
         switch (credential.service) {
           case 'google_sheets': {
+            // Log the verification attempt for debugging
+            logger.info('Verifying Google Sheets credential', {
+              credentialId,
+              clientEmail: credentialData.client_email,
+              attemptingSheetsAccess: true
+            });
+
             // Verify Google Sheets credential by making an actual API call
             try {
-              // Initialize Google Sheets authentication with the provided credentials
               const { google } = await import('googleapis');
               const { JWT } = await import('google-auth-library');
 
@@ -611,18 +617,88 @@ router.post(
 
               // Test the authentication by making a simple API call
               const sheets = google.sheets({ version: 'v4', auth: auth as any });
+              const drive = google.drive({ version: 'v3', auth: auth as any });
 
               // Make a test request to see if credentials work
-              // Using a simple request to get about information
               await auth.authorize();
 
-              // If we get here, the credentials are valid
+              // Make a real API call to verify Sheets access
+              try {
+                // Test with a minimal spreadsheets.get request to a dummy spreadsheet ID
+                // This will fail with 404 but will verify authentication works
+                await sheets.spreadsheets.get({
+                  spreadsheetId: '1A2B3C4D5E6F7G8H9I0_dummy_test_id',
+                  fields: 'spreadsheetId'
+                });
+              } catch (sheetsError: any) {
+                // If it's a 404 error, that means authentication worked but the spreadsheet doesn't exist
+                if (sheetsError.code === 404 || (sheetsError.response && sheetsError.response.status === 404)) {
+                  logger.info('Google Sheets authentication successful (404 expected for dummy ID)', {
+                    credentialId,
+                    clientEmail: credentialData.client_email
+                  });
+                } else if (sheetsError.response && sheetsError.response.status === 403) {
+                  // 403 means authentication worked but scopes are insufficient
+                  logger.error('Google Sheets authentication successful but insufficient scopes', {
+                    credentialId,
+                    clientEmail: credentialData.client_email,
+                    error: sheetsError.message
+                  });
+                  throw sheetsError;
+                } else {
+                  // Any other error might indicate auth problems
+                  logger.info('Google Sheets authentication test result', {
+                    credentialId,
+                    clientEmail: credentialData.client_email,
+                    status: sheetsError.response?.status,
+                    message: sheetsError.message
+                  });
+                }
+              }
+
+              // Make a real API call to verify Drive access
+              try {
+                // Test Drive access by listing files (limited to 1 to minimize data)
+                await drive.files.list({
+                  pageSize: 1,
+                  fields: 'files(id, name)'
+                });
+
+                logger.info('Google Drive access verified successfully', {
+                  credentialId,
+                  clientEmail: credentialData.client_email
+                });
+              } catch (driveError: any) {
+                if (driveError.response && driveError.response.status === 403) {
+                  logger.error('Google Drive access failed - insufficient scopes', {
+                    credentialId,
+                    clientEmail: credentialData.client_email,
+                    error: driveError.message
+                  });
+                  throw driveError;
+                } else {
+                  logger.error('Google Drive access test failed', {
+                    credentialId,
+                    clientEmail: credentialData.client_email,
+                    status: driveError.response?.status,
+                    error: driveError.message
+                  });
+                  throw driveError;
+                }
+              }
+
+              logger.info('Google Sheets credential verification successful', {
+                credentialId,
+                clientEmail: credentialData.client_email
+              });
+
               verified = true;
               connectedAs = credentialData.client_email || 'Service Account';
             } catch (authError) {
               logger.error('Google Sheets credential verification failed', {
-                error: authError instanceof Error ? authError.message : String(authError),
-                credentialId
+                credentialId,
+                clientEmail: credentialData.client_email,
+                error: authError instanceof Error ? authError.message : String(authError)
               });
               verified = false;
               connectedAs = 'Service Account';
