@@ -830,9 +830,86 @@ router.post(
           }
 
           case 'shopify': {
-            // Verify Shopify credential - would call Shopify API
-            verified = credentialData.access_token && credentialData.shop_url;
-            connectedAs = credentialData.shop_url || 'Shopify Store';
+            // Log the verification attempt for debugging
+            logger.info('Verifying Shopify credential', {
+              credentialId,
+              shopUrl: credentialData.shop_url,
+              attemptingShopifyAccess: true
+            });
+
+            // Verify Shopify credential by making an actual API call to Shopify GraphQL API
+            try {
+              const accessToken = credentialData.access_token;
+              const shopUrl = credentialData.shop_url;
+
+              if (!accessToken) {
+                throw new Error('Missing access token');
+              }
+
+              if (!shopUrl) {
+                throw new Error('Missing shop URL');
+              }
+
+              // Make a GraphQL request to verify the token
+              const response = await fetch(
+                `https://${shopUrl}/admin/api/2025-10/graphql.json`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Access-Token': accessToken,
+                  },
+                  body: JSON.stringify({
+                    query: 'query CheckTokenValidity { shop { id name } }'
+                  })
+                }
+              );
+
+              logger.info('Shopify verification response', {
+                credentialId,
+                shopUrl,
+                statusCode: response.status,
+                success: response.ok
+              });
+
+              const result = await response.json();
+
+              if (!response.ok) {
+                logger.error('Shopify credential verification failed', {
+                  credentialId,
+                  shopUrl,
+                  statusCode: response.status,
+                  error: result.errors || 'Unknown error'
+                });
+                throw new Error(`Shopify API request failed with status ${response.status}`);
+              }
+
+              // Check if the response contains valid data
+              if (result.data && result.data.shop) {
+                logger.info('Shopify credential verification successful', {
+                  credentialId,
+                  shopUrl,
+                  shopName: result.data.shop.name
+                });
+                verified = true;
+                connectedAs = result.data.shop.name || shopUrl || 'Shopify Store';
+              } else {
+                logger.error('Shopify credential verification failed - invalid response', {
+                  credentialId,
+                  shopUrl,
+                  result
+                });
+                throw new Error('Shopify API returned invalid response');
+              }
+            } catch (error) {
+              logger.error('Shopify credential verification failed', {
+                credentialId,
+                shopUrl: credentialData.shop_url,
+                error: error instanceof Error ? error.message : String(error)
+              });
+              verified = false;
+              connectedAs = 'Shopify Store';
+            }
             break;
           }
         }
@@ -870,16 +947,6 @@ router.post(
         } else {
           throw new Error('Credential verification failed - invalid format');
         }
-
-        const response: VerifyCredentialResponse = {
-          verified: true,
-          message: `Connected as ${connectedAs}`,
-          connectedAs,
-          expiresAt,
-        };
-
-        // Return in standard API response format that frontend expects
-        res.json({ success: true, data: response });
       } catch (error) {
         logger.error('Credential verification error', { error: String(error) });
 
