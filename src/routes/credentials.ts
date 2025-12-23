@@ -735,6 +735,13 @@ router.post(
           case 'ga4': {
             // Verify GA4 credential - can be either service account or refresh token
             if (credentialData.type === 'service_account') {
+              // Log the verification attempt for debugging
+              logger.info('Verifying GA4 service account credential', {
+                credentialId,
+                clientEmail: credentialData.client_email,
+                attemptingServiceAccountAccess: true
+              });
+
               // Verify GA4 service account credential by making an actual API call
               try {
                 const { google } = await import('googleapis');
@@ -752,25 +759,72 @@ router.post(
                 // Test the authentication by making a simple API call
                 const analyticsData = google.analyticsdata({ version: 'v1beta', auth: auth as any });
 
-                // If we get here, the credentials are valid
+                // Make a test API call to verify the credentials work
                 await auth.authorize();
-                verified = true;
-                connectedAs = credentialData.client_email || 'GA4 Service Account';
+
+                // Make a real API call to verify the credentials work by fetching account summaries
+                try {
+                  // Use the analytics admin API to list account summaries
+                  const { google } = await import('googleapis');
+                  const admin = google.analyticsadmin({ version: 'v1beta', auth: auth as any });
+
+                  const response = await admin.accountSummaries.list({});
+
+                  logger.info('GA4 service account verification successful', {
+                    credentialId,
+                    clientEmail: credentialData.client_email,
+                    hasAccounts: Array.isArray(response.data.accountSummaries) && response.data.accountSummaries.length > 0
+                  });
+
+                  verified = true;
+                  connectedAs = credentialData.client_email || 'GA4 Service Account';
+                } catch (apiError) {
+                  logger.error('GA4 service account API verification failed', {
+                    credentialId,
+                    clientEmail: credentialData.client_email,
+                    error: apiError instanceof Error ? apiError.message : String(apiError)
+                  });
+                  verified = false;
+                  connectedAs = 'GA4 Service Account';
+                }
               } catch (authError) {
                 logger.error('GA4 service account credential verification failed', {
-                  error: authError instanceof Error ? authError.message : String(authError),
-                  credentialId
+                  credentialId,
+                  clientEmail: credentialData.client_email,
+                  error: authError instanceof Error ? authError.message : String(authError)
                 });
                 verified = false;
                 connectedAs = 'GA4 Service Account';
               }
             } else {
+              // Log the verification attempt for refresh token
+              logger.info('Verifying GA4 refresh token credential', {
+                credentialId,
+                propertyId: credentialData.property_id,
+                attemptingRefreshTokenAccess: true
+              });
+
               // Verify GA4 refresh token credential
               verified =
                 credentialData.refresh_token &&
                 credentialData.client_id &&
                 credentialData.client_secret;
               connectedAs = credentialData.property_id || 'GA4 Property';
+
+              if (verified) {
+                logger.info('GA4 refresh token credential format valid', {
+                  credentialId,
+                  propertyId: credentialData.property_id
+                });
+              } else {
+                logger.error('GA4 refresh token credential format invalid', {
+                  credentialId,
+                  propertyId: credentialData.property_id,
+                  hasRefreshToken: !!credentialData.refresh_token,
+                  hasClientId: !!credentialData.client_id,
+                  hasClientSecret: !!credentialData.client_secret
+                });
+              }
             }
             break;
           }
