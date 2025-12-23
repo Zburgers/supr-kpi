@@ -27,6 +27,7 @@ import {
 // Database and authentication
 import { initializeDatabase, closeDatabase } from '../lib/database.js';
 import { authenticate, requireAuth } from '../middleware/auth.js';
+import { swaggerDocs } from '../middleware/swagger.js';
 
 // Credential management routes
 import credentialRoutes from '../routes/credentials.js';
@@ -95,7 +96,7 @@ app.use(sanitizeRequest());
 app.use(requestTimeout(30000));
 
 // API key authentication (optional - enable by setting API_KEY env)
-app.use(apiKeyAuth(['/api/health', '/', '/api/init']));
+app.use(apiKeyAuth(['/api/health', '/', '/api/init', '/api/docs', '/api/docs.json']));
 
 // Static files
 app.use(express.static(publicDir, {
@@ -112,6 +113,9 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   });
   next();
 });
+
+// Swagger / OpenAPI documentation
+swaggerDocs(app);
 
 // ============================================================================
 // CREDENTIAL MANAGEMENT ROUTES (NEW)
