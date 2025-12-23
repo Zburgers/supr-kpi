@@ -152,13 +152,21 @@ export function Settings() {
     loadData();
   }, [loadData]);
 
+// TODO: Add Toast or notification for better UX
+
   const handleVerifyCredential = useCallback(
     async (credentialId: string) => {
       try {
         await verifyCredential(credentialId);
-        await loadData();
+        // On success, still reload to show the updated status
       } catch (err) {
-        console.error('Failed to verify credential:', err);
+        console.error('Credential verification failed:', err);
+        // Show user-friendly message about verification failure
+        const errorMessage = err instanceof Error ? err.message : 'Verification failed';
+        alert(`Verification failed: ${errorMessage}\n\nPlease check your token - if it's temporary, generate a new one. If it's permanent, verify it's correct. Consider removing and re-adding the token if issues persist.`);
+      } finally {
+        // Always reload data to reflect the current verification status
+        await loadData();
       }
     },
     [verifyCredential, loadData]

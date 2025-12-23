@@ -69,10 +69,24 @@ function validateCredentialFormat(service: string, credentialJson: string): stri
       }
 
       case 'ga4': {
-        if (!data.refresh_token) errors.push('Missing refresh_token');
-        if (!data.client_id) errors.push('Missing client_id');
-        if (!data.client_secret) errors.push('Missing client_secret');
-        if (!data.property_id) errors.push('Missing property_id');
+        // GA4 can use either service account or OAuth refresh token credentials
+        const isServiceAccount = data.type === 'service_account';
+
+        if (isServiceAccount) {
+          // Service account format
+          if (!data.type || data.type !== 'service_account') {
+            errors.push('GA4 credential must be a service account');
+          }
+          if (!data.private_key) errors.push('Missing private_key');
+          if (!data.client_email) errors.push('Missing client_email');
+          if (!data.project_id) errors.push('Missing project_id');
+        } else {
+          // OAuth refresh token format
+          if (!data.refresh_token) errors.push('Missing refresh_token');
+          if (!data.client_id) errors.push('Missing client_id');
+          if (!data.client_secret) errors.push('Missing client_secret');
+          if (!data.property_id) errors.push('Missing property_id');
+        }
         break;
       }
 
@@ -105,7 +119,11 @@ function getCredentialPreview(service: string, credentialJson: string): string {
       case 'meta':
         return data.account_id || 'Meta Account';
       case 'ga4':
-        return data.property_id || 'GA4 Property';
+        if (data.type === 'service_account') {
+          return data.client_email || 'GA4 Service Account';
+        } else {
+          return data.property_id || 'GA4 Property';
+        }
       case 'shopify':
         return data.shop_url || 'Shopify Store';
       default:
@@ -613,19 +631,147 @@ router.post(
           }
 
           case 'meta': {
-            // Verify Meta credential - would call Meta API to validate token
-            verified = credentialData.access_token && credentialData.account_id;
-            connectedAs = credentialData.account_id || 'Meta Account';
+            // Verify Meta credential by making an actual API call to Meta Graph API
+            try {
+              const accessToken = credentialData.access_token;
+              const accountId = credentialData.account_id;
+
+              if (!accessToken) {
+                throw new Error('Missing access token');
+              }
+
+              if (!accountId) {
+                throw new Error('Missing account ID');
+              }
+
+              // Log the verification attempt for debugging
+              logger.info('Verifying Meta access token', {
+                credentialId,
+                accountId,
+                attemptingAccountAccess: true
+              });
+
+              // Validate the ad account exists by fetching its information
+              const accountResponse = await fetch(
+                `https://graph.facebook.com/v18.0/act_${encodeURIComponent(accountId)}?access_token=${encodeURIComponent(accessToken)}&fields=account_id,name,account_status`
+              );
+              const accountData = await accountResponse.json();
+
+              logger.info('Meta account verification response', {
+                credentialId,
+                accountId,
+                statusCode: accountResponse.status,
+                success: accountResponse.ok,
+                hasData: !!accountData
+              });
+
+              if (!accountResponse.ok) {
+                logger.error('Meta account verification failed', {
+                  credentialId,
+                  accountId,
+                  statusCode: accountResponse.status,
+                  error: accountData.error?.message || accountData.error_msg,
+                  errorType: accountData.error?.type
+                });
+                throw new Error(accountData.error?.message || accountData.error_msg || `Failed to verify Meta ad account ${accountId}`);
+              }
+
+              logger.info('Meta account verification successful', {
+                credentialId,
+                accountId,
+                accountName: accountData?.name,
+                accountStatus: accountData?.account_status
+              });
+
+              // Additional check: try to fetch some basic insights to ensure proper permissions
+              logger.info('Checking Meta insights permissions', {
+                credentialId,
+                accountId,
+                attemptingInsightsAccess: true
+              });
+
+              const insightsResponse = await fetch(
+                `https://graph.facebook.com/v18.0/act_${encodeURIComponent(accountId)}/insights?access_token=${encodeURIComponent(accessToken)}&fields=account_id&limit=1`
+              );
+              const insightsData = await insightsResponse.json();
+
+              logger.info('Meta insights verification response', {
+                credentialId,
+                accountId,
+                statusCode: insightsResponse.status,
+                success: insightsResponse.ok,
+                hasData: !!insightsData
+              });
+
+              if (!insightsResponse.ok) {
+                // Don't fail completely if insights permission is missing, just log it
+                logger.warn('Meta account has limited permissions (insights access)', {
+                  credentialId,
+                  accountId,
+                  statusCode: insightsResponse.status,
+                  error: insightsData.error?.message || insightsData.error_msg,
+                  errorType: insightsData.error?.type
+                });
+              } else {
+                logger.info('Meta insights access verified successfully', {
+                  credentialId,
+                  accountId
+                });
+              }
+
+              verified = true;
+              connectedAs = accountData?.name || accountData?.account_id || 'Meta Account';
+            } catch (error) {
+              logger.error('Meta credential verification failed', {
+                error: error instanceof Error ? error.message : String(error),
+                credentialId
+              });
+              verified = false;
+              connectedAs = 'Meta Account';
+            }
             break;
           }
 
           case 'ga4': {
-            // Verify GA4 credential - would call Google API to refresh token
-            verified =
-              credentialData.refresh_token &&
-              credentialData.client_id &&
-              credentialData.client_secret;
-            connectedAs = credentialData.property_id || 'GA4 Property';
+            // Verify GA4 credential - can be either service account or refresh token
+            if (credentialData.type === 'service_account') {
+              // Verify GA4 service account credential by making an actual API call
+              try {
+                const { google } = await import('googleapis');
+                const { JWT } = await import('google-auth-library');
+
+                const auth = new JWT({
+                  email: credentialData.client_email,
+                  key: credentialData.private_key,
+                  scopes: [
+                    'https://www.googleapis.com/auth/analytics.readonly',
+                    'https://www.googleapis.com/auth/analytics',
+                  ],
+                });
+
+                // Test the authentication by making a simple API call
+                const analyticsData = google.analyticsdata({ version: 'v1beta', auth: auth as any });
+
+                // If we get here, the credentials are valid
+                await auth.authorize();
+                verified = true;
+                connectedAs = credentialData.client_email || 'GA4 Service Account';
+              } catch (authError) {
+                logger.error('GA4 service account credential verification failed', {
+                  error: authError instanceof Error ? authError.message : String(authError),
+                  credentialId
+                });
+                verified = false;
+                connectedAs = 'GA4 Service Account';
+              }
+            } else {
+              // Verify GA4 refresh token credential
+              verified =
+                credentialData.refresh_token &&
+                credentialData.client_id &&
+                credentialData.client_secret;
+              connectedAs = credentialData.property_id || 'GA4 Property';
+            }
             break;
           }
 
@@ -657,6 +803,16 @@ router.post(
             undefined,
             { credentialId }
           );
+
+          const response: VerifyCredentialResponse = {
+            verified: true,
+            message: `Connected as ${connectedAs}`,
+            connectedAs,
+            expiresAt,
+          };
+
+          // Return in standard API response format that frontend expects
+          res.json({ success: true, data: response });
         } else {
           throw new Error('Credential verification failed - invalid format');
         }
@@ -673,6 +829,24 @@ router.post(
       } catch (error) {
         logger.error('Credential verification error', { error: String(error) });
 
+        // Update the credential to mark it as not verified when verification fails
+        try {
+          await executeQuery(
+            `
+            UPDATE credentials
+            SET verified = false, verified_at = NULL
+            WHERE id = $1;
+            `,
+            [credentialId],
+            req.user!.userId
+          );
+        } catch (dbError) {
+          logger.error('Failed to update credential verification status', {
+            error: String(dbError),
+            credentialId
+          });
+        }
+
         await logAudit(
           req.user!.userId,
           'verification_failed',
@@ -682,8 +856,9 @@ router.post(
           { credentialId }
         );
 
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         res.status(400).json({
-          error: 'Failed to verify credential',
+          error: `Credential verification failed: ${errorMessage}. Please check your token - if it's temporary, generate a new one. If it's permanent, verify it's correct. Consider removing and re-adding the token if issues persist.`,
           code: ErrorCode.VERIFICATION_FAILED,
         } as ErrorResponse);
       }
