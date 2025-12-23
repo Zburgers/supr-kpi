@@ -36,10 +36,10 @@ const QUEUE_NAME = 'etl-sync';
  * Process a sync job based on source
  */
 async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJobResult> {
-  const { source, targetDate, jobId } = job.data;
+  const { source, targetDate, jobId, userId: jobUserId } = job.data;
   const startTime = Date.now();
 
-  logger.info(`Processing ${source} sync job`, { jobId, targetDate });
+  logger.info(`Processing ${source} sync job`, { jobId, targetDate, userId: jobUserId });
   events.syncStarted(source, targetDate, jobId);
 
   try {
@@ -54,11 +54,17 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
     const { decryptCredential } = await import('../lib/encryption.js');
 
     // Get the service configuration to find the credential ID
+    // If userId is provided in job, filter by it (multi-tenant support)
+    const userFilter = jobUserId ? 'AND sc.user_id = $2' : '';
+    const queryParams = jobUserId 
+      ? [source, jobUserId] 
+      : [source];
+    
     const serviceConfigResult = await executeQuery(
-      `SELECT credential_id FROM service_configs
-       WHERE service = $1 AND enabled = true
+      `SELECT sc.credential_id, sc.user_id FROM service_configs sc
+       WHERE sc.service = $1 AND sc.enabled = true ${userFilter}
        LIMIT 1`,
-      [source]
+      queryParams
     );
 
     let result: ETLJobResult;

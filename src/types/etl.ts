@@ -130,6 +130,8 @@ export interface ETLJobPayload {
   spreadsheetId?: string;
   /** Optional override for sheet name */
   sheetName?: string;
+  /** User ID for multi-tenant credential lookup */
+  userId?: number;
 }
 
 /**

@@ -26,7 +26,7 @@ import {
 
 // Database and authentication
 import { initializeDatabase, closeDatabase } from '../lib/database.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireAuth } from '../middleware/auth.js';
 
 // Credential management routes
 import credentialRoutes from '../routes/credentials.js';
@@ -197,17 +197,21 @@ app.get('/api/v1/jobs/:jobId', async (req: Request, res: Response) => {
 });
 
 // ============================================================================
-// SYNC API ENDPOINTS (v1)
+// SYNC API ENDPOINTS (v1) - AUTHENTICATED
 // ============================================================================
 
 /**
  * Trigger sync for all sources via queue
  * POST /api/v1/sync/all
+ * Requires authentication for multi-tenant support
  */
-app.post('/api/v1/sync/all', async (req: Request, res: Response) => {
+app.post('/api/v1/sync/all', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  
   try {
     const { targetDate } = req.body || {};
-    const jobs = await etlQueue.enqueueAllSyncs({ targetDate });
+    const userId = req.user!.userId;
+    const jobs = await etlQueue.enqueueAllSyncs({ targetDate, userId });
 
     res.json({
       success: true,
@@ -223,6 +227,7 @@ app.post('/api/v1/sync/all', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Failed to enqueue sync jobs', {
       error: error instanceof Error ? error.message : String(error),
+      userId: req.user?.userId,
     });
     res.status(500).json({
       success: false,
@@ -234,11 +239,15 @@ app.post('/api/v1/sync/all', async (req: Request, res: Response) => {
 /**
  * Trigger Meta sync via queue
  * POST /api/v1/sync/meta
+ * Requires authentication for multi-tenant support
  */
-app.post('/api/v1/sync/meta', async (req: Request, res: Response) => {
+app.post('/api/v1/sync/meta', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  
   try {
     const { targetDate, spreadsheetId, sheetName } = req.body || {};
-    const job = await etlQueue.enqueueSync('meta', { targetDate, spreadsheetId, sheetName });
+    const userId = req.user!.userId;
+    const job = await etlQueue.enqueueSync('meta', { targetDate, spreadsheetId, sheetName, userId });
 
     res.json({
       success: true,
@@ -260,11 +269,15 @@ app.post('/api/v1/sync/meta', async (req: Request, res: Response) => {
 /**
  * Trigger GA4 sync via queue
  * POST /api/v1/sync/ga4
+ * Requires authentication for multi-tenant support
  */
-app.post('/api/v1/sync/ga4', async (req: Request, res: Response) => {
+app.post('/api/v1/sync/ga4', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  
   try {
     const { targetDate, spreadsheetId, sheetName } = req.body || {};
-    const job = await etlQueue.enqueueSync('ga4', { targetDate, spreadsheetId, sheetName });
+    const userId = req.user!.userId;
+    const job = await etlQueue.enqueueSync('ga4', { targetDate, spreadsheetId, sheetName, userId });
 
     res.json({
       success: true,
@@ -286,11 +299,15 @@ app.post('/api/v1/sync/ga4', async (req: Request, res: Response) => {
 /**
  * Trigger Shopify sync via queue
  * POST /api/v1/sync/shopify
+ * Requires authentication for multi-tenant support
  */
-app.post('/api/v1/sync/shopify', async (req: Request, res: Response) => {
+app.post('/api/v1/sync/shopify', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  
   try {
     const { targetDate, spreadsheetId, sheetName } = req.body || {};
-    const job = await etlQueue.enqueueSync('shopify', { targetDate, spreadsheetId, sheetName });
+    const userId = req.user!.userId;
+    const job = await etlQueue.enqueueSync('shopify', { targetDate, spreadsheetId, sheetName, userId });
 
     res.json({
       success: true,
@@ -548,12 +565,18 @@ app.get('/api/init', async (_req: Request, res: Response) => {
 });
 
 /**
- * List spreadsheets
+ * List spreadsheets - DEPRECATED: Use /api/sheets/spreadsheets with authentication instead
  */
-app.get('/api/spreadsheets', async (_req: Request, res: Response) => {
+app.get('/api/spreadsheets', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
-    const spreadsheets = await sheetsService.listSpreadsheets();
-    res.json({ success: true, data: spreadsheets });
+    // This endpoint should not be used - users should use authenticated endpoint
+    // For backward compatibility, we'll return an error directing to use the new endpoint
+    res.status(400).json({
+      success: false,
+      error: 'This endpoint is deprecated. Please use authenticated endpoint: GET /api/sheets/spreadsheets with credential_id parameter',
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -563,13 +586,17 @@ app.get('/api/spreadsheets', async (_req: Request, res: Response) => {
 });
 
 /**
- * Get sheet names
+ * Get sheet names - DEPRECATED: Use /api/sheets/:spreadsheetId/sheets with authentication instead
  */
-app.get('/api/sheets/:spreadsheetId', async (req: Request, res: Response) => {
+app.get('/api/sheets/:spreadsheetId', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
-    const { spreadsheetId } = req.params;
-    const sheets = await sheetsService.getSheetNames(spreadsheetId);
-    res.json({ success: true, data: sheets });
+    // This endpoint should not be used - users should use authenticated endpoint
+    res.status(400).json({
+      success: false,
+      error: 'This endpoint is deprecated. Please use authenticated endpoint: GET /api/sheets/:spreadsheetId/sheets with credential_id parameter',
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -579,13 +606,17 @@ app.get('/api/sheets/:spreadsheetId', async (req: Request, res: Response) => {
 });
 
 /**
- * Read sheet data
+ * Read sheet data - DEPRECATED: Use /api/sheets/:spreadsheetId/values with authentication instead
  */
-app.get('/api/data/:spreadsheetId/:sheetName', async (req: Request, res: Response) => {
+app.get('/api/data/:spreadsheetId/:sheetName', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
-    const { spreadsheetId, sheetName } = req.params;
-    const data = await sheetsService.readSheet(spreadsheetId, sheetName);
-    res.json({ success: true, data });
+    // This endpoint should not be used - users should use authenticated endpoint
+    res.status(400).json({
+      success: false,
+      error: 'This endpoint is deprecated. Please use authenticated endpoint: GET /api/sheets/:spreadsheetId/values with credential_id and sheetName parameters',
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -595,14 +626,18 @@ app.get('/api/data/:spreadsheetId/:sheetName', async (req: Request, res: Respons
 });
 
 /**
- * Read raw sheet values (including header row)
+ * Read raw sheet values (including header row) - DEPRECATED: Use /api/sheets/:spreadsheetId/values with authentication instead
  * Returns a 2D array exactly as stored in the sheet
  */
-app.get('/api/data/raw/:spreadsheetId/:sheetName', async (req: Request, res: Response) => {
+app.get('/api/data/raw/:spreadsheetId/:sheetName', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
-    const { spreadsheetId, sheetName } = req.params;
-    const data = await sheetsService.getRawValues(spreadsheetId, sheetName);
-    res.json({ success: true, data });
+    // This endpoint should not be used - users should use authenticated endpoint
+    res.status(400).json({
+      success: false,
+      error: 'This endpoint is deprecated. Please use authenticated endpoint: GET /api/sheets/:spreadsheetId/values with credential_id and sheetName parameters',
+    });
   } catch (error) {
     res.status(500).json({
       success: false,

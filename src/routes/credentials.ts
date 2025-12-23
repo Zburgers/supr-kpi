@@ -190,6 +190,7 @@ router.post('/save', authenticate, async (req: Request, res: Response): Promise<
 
     // Save to database in transaction
     const result = await executeTransaction(async (client) => {
+      // Insert credential
       const insertResult = await client.query(
         `
         INSERT INTO credentials (user_id, service, name, encrypted_data)
@@ -199,7 +200,20 @@ router.post('/save', authenticate, async (req: Request, res: Response): Promise<
         [req.user!.userId, service, credentialName, encryptedData]
       );
 
-      return insertResult.rows[0];
+      const credential = insertResult.rows[0];
+
+      // Auto-enable the service with this credential
+      await client.query(
+        `
+        INSERT INTO service_configs (user_id, service, credential_id, enabled)
+        VALUES ($1, $2, $3, true)
+        ON CONFLICT (user_id, service) DO UPDATE
+        SET credential_id = $3, enabled = true, updated_at = CURRENT_TIMESTAMP;
+        `,
+        [req.user!.userId, service, credential.id]
+      );
+
+      return credential;
     }, req.user!.userId);
 
     // Log audit

@@ -20,7 +20,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useServiceConfig } from '@/hooks/useServiceConfig'
-import { useSheetMappings } from '@/hooks/useSheetMappings'
 import * as api from '@/lib/api'
 import type { SpreadsheetInfo, SheetInfo } from '@/types'
 import {
@@ -39,7 +38,6 @@ interface SheetData {
 
 export function SheetViewerDialog() {
   const { sheetConfig, services } = useServiceConfig()
-  const { saveSheetMapping } = useSheetMappings()
   const [open, setOpen] = useState(false)
   const [spreadsheets, setSpreadsheets] = useState<SpreadsheetInfo[]>([])
   const [sheets, setSheets] = useState<SheetInfo[]>([])
@@ -55,10 +53,10 @@ export function SheetViewerDialog() {
 
   // Initialize selected spreadsheet from config when it loads
   useEffect(() => {
-    if (sheetConfig?.spreadsheetId && !selectedSpreadsheet) {
-      setSelectedSpreadsheet(sheetConfig.spreadsheetId)
+    if (sheetConfig?.spreadsheetId && !selectedSpreadsheet && open) {
+      setSelectedSpreadsheet(sheetConfig.spreadsheetId);
     }
-  }, [sheetConfig, selectedSpreadsheet])
+  }, [sheetConfig, selectedSpreadsheet, open])
 
   // Load spreadsheets on open
   useEffect(() => {
@@ -69,16 +67,22 @@ export function SheetViewerDialog() {
 
   // Load sheets when spreadsheet changes
   useEffect(() => {
-    if (selectedSpreadsheet) {
-      loadSheets(selectedSpreadsheet)
+    if (selectedSpreadsheet && open) {
+      loadSheets(selectedSpreadsheet);
     }
-  }, [selectedSpreadsheet])
+  }, [selectedSpreadsheet, open])
 
   const loadSpreadsheets = async () => {
     setIsLoadingSpreadsheets(true)
     setError(null)
     try {
-      const response = await api.listSpreadsheets()
+      // Use the sheets credential if available for authenticated access
+      const credentialId = services.sheets?.credentialId
+      if (!credentialId) {
+        setError('Google Sheets credential is required to list spreadsheets. Please configure a Sheets credential.')
+        return
+      }
+      const response = await api.listSpreadsheets(credentialId)
       if (response.success && response.data) {
         setSpreadsheets(response.data)
       } else {
@@ -95,7 +99,13 @@ export function SheetViewerDialog() {
     setIsLoadingSheets(true)
     setError(null)
     try {
-      const response = await api.getSheetNames(spreadsheetId)
+      // Use the sheets credential if available for authenticated access
+      const credentialId = services.sheets?.credentialId
+      if (!credentialId) {
+        setError('Google Sheets credential is required to get sheet names. Please configure a Sheets credential.')
+        return
+      }
+      const response = await api.getSheetNames(spreadsheetId, credentialId)
       if (response.success && response.data) {
         setSheets(response.data)
         // Auto-select first sheet or the one matching current tab
@@ -128,6 +138,11 @@ export function SheetViewerDialog() {
   const loadSheetData = useCallback(async (forceRefresh = false) => {
     if (!selectedSpreadsheet || !selectedSheet) return
 
+    if (!services.sheets?.credentialId) {
+      setError('Google Sheets credential is required to load sheet data. Configure it in Settings.')
+      return
+    }
+
     const cacheKey = `${selectedSpreadsheet}:${selectedSheet}`
     const cached = cacheRef.current.get(cacheKey)
 
@@ -139,7 +154,9 @@ export function SheetViewerDialog() {
     setIsLoadingData(true)
     setError(null)
     try {
-      const response = await api.getSheetRawData(selectedSpreadsheet, selectedSheet)
+      // Use the sheets credential for authenticated access
+      const credentialId = services.sheets.credentialId
+      const response = await api.getSheetRawData(selectedSpreadsheet, selectedSheet, credentialId)
       if (response.success && response.data) {
         const data = response.data
         const parsed: SheetData = {
@@ -158,7 +175,7 @@ export function SheetViewerDialog() {
     } finally {
       setIsLoadingData(false)
     }
-  }, [selectedSpreadsheet, selectedSheet])
+  }, [selectedSpreadsheet, selectedSheet, services])
 
   // Handle tab change - switch to the appropriate sheet
   const handleTabChange = (tab: string) => {
@@ -179,8 +196,7 @@ export function SheetViewerDialog() {
 
   const handleSpreadsheetChange = (value: string) => {
     setSelectedSpreadsheet(value)
-    // Save sheet mapping to backend for each service
-    // Note: This creates/updates mappings with the new spreadsheet ID
+
     setSelectedSheet('')
     setSheetData(null)
   }
@@ -189,25 +205,8 @@ export function SheetViewerDialog() {
     setSelectedSheet(sheetName)
     const cached = cacheRef.current.get(`${selectedSpreadsheet}:${sheetName}`)
     setSheetData(cached || null)
-    
-    // Save the sheet mapping to backend for the current tab's service
-    // Use sheets credential for Google Sheets operations
-    const sheetsCredentialId = services.sheets?.credentialId
-    if (!sheetsCredentialId) {
-      console.warn('No sheets credential configured, skipping mapping save')
-      return
-    }
-    
-    try {
-      await saveSheetMapping({
-        service: activeTab,
-        credential_id: sheetsCredentialId,
-        spreadsheet_id: selectedSpreadsheet,
-        sheet_name: sheetName,
-      })
-    } catch (err) {
-      console.warn('Failed to save sheet mapping:', err)
-    }
+    // Note: Sheet mappings are managed through Settings > Sheet Mappings
+    // This viewer is read-only and uses configured mappings
   }
 
   const formatCellValue = (value: string | number | null | undefined): string => {
@@ -230,29 +229,29 @@ export function SheetViewerDialog() {
             Sheet Viewer
           </DialogTitle>
           <DialogDescription>
-            View and manage your Google Sheets data. Select a spreadsheet and sheet to view data.
+            View your Google Sheets data. Uses configured spreadsheet and mappings from Settings.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
-          {/* Spreadsheet & Sheet Selection */}
+          {/* Spreadsheet & Sheet Selection - Read-only, uses configured spreadsheet */}
           <div className="flex flex-wrap gap-4 items-end">
             <div className="space-y-1.5 flex-1 min-w-[200px]">
-              <label className="text-sm font-medium">Spreadsheet</label>
+              <label className="text-sm font-medium">Configured Spreadsheet</label>
               <Select
                 value={selectedSpreadsheet}
                 onValueChange={handleSpreadsheetChange}
-                disabled={isLoadingSpreadsheets}
+                disabled={isLoadingSpreadsheets || !services.sheets?.credentialId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select spreadsheet">
+                  <SelectValue placeholder="No spreadsheet configured">
                     {isLoadingSpreadsheets ? (
                       <span className="flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Loading...
                       </span>
                     ) : (
-                      spreadsheets.find(s => s.id === selectedSpreadsheet)?.name || 'Select spreadsheet'
+                      spreadsheets.find(s => s.id === selectedSpreadsheet)?.name || 'No spreadsheet configured'
                     )}
                   </SelectValue>
                 </SelectTrigger>
@@ -264,6 +263,11 @@ export function SheetViewerDialog() {
                   ))}
                 </SelectContent>
               </Select>
+              {sheetConfig?.spreadsheetId && (
+                <p className="text-xs text-muted-foreground">
+                  Showing configured spreadsheet from Settings
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5 flex-1 min-w-[200px]">
@@ -287,7 +291,7 @@ export function SheetViewerDialog() {
                 </SelectTrigger>
                 <SelectContent>
                   {sheets.map((sheet) => (
-                    <SelectItem key={sheet.sheetId} value={sheet.name}>
+                    <SelectItem key={sheet.name} value={sheet.name}>
                       {sheet.name}
                     </SelectItem>
                   ))}

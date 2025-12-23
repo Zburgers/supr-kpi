@@ -210,4 +210,83 @@ router.get('/:spreadsheetId/sheets', authenticate, async (req: Request, res: Res
   }
 });
 
+// ============================================================================
+// GET /api/sheets/:spreadsheetId/values
+// Get raw values from a specific sheet using stored credential or global service account
+// Query parameters: credential_id (optional), sheetName (required)
+// ============================================================================
+
+router.get('/:spreadsheetId/values', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!requireAuth(req, res)) return;
+
+  try {
+    const { spreadsheetId } = req.params;
+    const { credential_id, sheetName } = req.query;
+
+    if (!spreadsheetId) {
+      res.status(400).json({
+        error: 'spreadsheetId is required',
+        code: ErrorCode.MISSING_FIELDS,
+      } as ErrorResponse);
+      return;
+    }
+
+    if (!sheetName) {
+      res.status(400).json({
+        error: 'sheetName is required',
+        code: ErrorCode.MISSING_FIELDS,
+      } as ErrorResponse);
+      return;
+    }
+
+    if (credential_id) {
+      // Use stored credential
+      const credentialId = parseInt(credential_id as string);
+      if (isNaN(credentialId)) {
+        res.status(400).json({
+          error: 'credential_id must be a number',
+          code: ErrorCode.INVALID_JSON,
+        } as ErrorResponse);
+        return;
+      }
+
+      // Initialize sheets service with the stored credential
+      const { sheets } = await initializeSheetServiceWithCredential(credentialId, req.user!.userId);
+
+      // Get raw values from the specific sheet
+      const range = `'${sheetName}'`;
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range,
+      });
+
+      const values = (response.data.values as (string | number | null)[][]) || [];
+      res.json({ success: true, data: values });
+    } else {
+      // Use global service account (legacy behavior)
+      const values = await sheetsService.getRawValues(spreadsheetId, sheetName as string);
+      res.json({ success: true, data: values });
+    }
+  } catch (error) {
+    logger.error('Failed to get sheet values', {
+      error: String(error),
+      spreadsheetId: req.params.spreadsheetId,
+      sheetName: req.query.sheetName
+    });
+
+    // If it's the credential initialization error, return a more specific error
+    if (error instanceof Error && error.message.includes('service account credentials not configured')) {
+      res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+});
+
 export default router;

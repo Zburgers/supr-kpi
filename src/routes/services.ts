@@ -208,6 +208,25 @@ router.get('/', authenticate, async (req: Request, res: Response): Promise<void>
   if (!requireAuth(req, res)) return;
 
   try {
+    // First, check for credentials that don't have service_configs and auto-enable them
+    await executeQuery(
+      `
+      INSERT INTO service_configs (user_id, service, credential_id, enabled)
+      SELECT c.user_id, c.service, c.id, true
+      FROM credentials c
+      WHERE c.user_id = $1 
+        AND c.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM service_configs sc 
+          WHERE sc.user_id = c.user_id AND sc.service = c.service
+        )
+      ON CONFLICT (user_id, service) DO NOTHING;
+      `,
+      [req.user!.userId],
+      req.user!.userId
+    );
+
+    // Now fetch all service configs
     const result = await executeQuery(
       `
       SELECT 

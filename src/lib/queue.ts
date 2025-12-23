@@ -142,6 +142,7 @@ class ETLQueue {
       sheetName?: string;
       priority?: number;
       delay?: number;
+      userId?: number;
     }
   ): Promise<Job<ETLJobPayload, ETLJobResult>> {
     if (!this.isAvailable()) {
@@ -160,6 +161,7 @@ class ETLQueue {
       retryCount: 0,
       spreadsheetId: options?.spreadsheetId,
       sheetName: options?.sheetName,
+      userId: options?.userId,
     };
 
     const job = await queue.add(`sync-${source}`, payload, {
@@ -181,7 +183,7 @@ class ETLQueue {
   /**
    * Enqueue sync jobs for all enabled sources
    */
-  async enqueueAllSyncs(options?: { targetDate?: IsoDate }): Promise<Job<ETLJobPayload, ETLJobResult>[]> {
+  async enqueueAllSyncs(options?: { targetDate?: IsoDate; userId?: number }): Promise<Job<ETLJobPayload, ETLJobResult>[]> {
     const jobs: Job<ETLJobPayload, ETLJobResult>[] = [];
     const sources: DataSource[] = ['meta', 'ga4', 'shopify'];
     
@@ -195,6 +197,7 @@ class ETLQueue {
         const job = await this.enqueueSync(source, {
           targetDate: options?.targetDate,
           delay,
+          userId: options?.userId,
         });
         jobs.push(job);
         delay += staggerMs;
@@ -203,6 +206,7 @@ class ETLQueue {
 
     logger.info(`Enqueued ${jobs.length} sync jobs`, {
       sources: jobs.map((j) => j.data.source),
+      userId: options?.userId,
     });
 
     return jobs;

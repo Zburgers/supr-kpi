@@ -28,7 +28,7 @@ interface CalculatedMetrics {
 }
 
 export function useDashboardData(dateRange: DateRange) {
-  const { sheetConfig, isConfigured, loading: configLoading } = useServiceConfig()
+  const { sheetConfig, googleSheetsCredentialId, isConfigured, loading: configLoading } = useServiceConfig()
   const [data, setData] = useState<DashboardData>({
     meta: [],
     ga4: [],
@@ -140,13 +140,31 @@ export function useDashboardData(dateRange: DateRange) {
   const fetchData = useCallback(
     async (forceRefresh = false) => {
       // Wait for config to load
-      if (configLoading || !sheetConfig?.spreadsheetId) {
+      if (configLoading) {
         setData((prev) => ({ 
           ...prev, 
-          isLoading: configLoading,
-          error: !configLoading && !sheetConfig?.spreadsheetId 
-            ? 'No spreadsheet configured. Please configure your Google Sheets in Settings.' 
-            : null 
+          isLoading: true,
+          error: null 
+        }))
+        return
+      }
+      
+      // Check if we have a spreadsheet configured
+      if (!sheetConfig?.spreadsheetId) {
+        setData((prev) => ({ 
+          ...prev, 
+          isLoading: false,
+          error: 'No spreadsheet configured. Please configure your Google Sheets in Settings > Sheet Mappings.' 
+        }))
+        return
+      }
+
+      // Require a Google Sheets credential for authenticated access
+      if (!googleSheetsCredentialId) {
+        setData((prev) => ({
+          ...prev,
+          isLoading: false,
+          error: 'Missing Google Sheets credential. Please add a Sheets credential in Settings.',
         }))
         return
       }
@@ -167,32 +185,68 @@ export function useDashboardData(dateRange: DateRange) {
         }
 
         const spreadsheetId = sheetConfig.spreadsheetId
-
-        const [metaRes, ga4Res, shopifyRes] = await Promise.all([
-          api.getSheetRawData(spreadsheetId, sheetConfig.metaSheetName),
-          api.getSheetRawData(spreadsheetId, sheetConfig.ga4SheetName),
-          api.getSheetRawData(spreadsheetId, sheetConfig.shopifySheetName),
+        
+        // Fetch data from each sheet independently - don't fail if one sheet is missing
+        const results = await Promise.allSettled([
+          api.getSheetRawData(spreadsheetId, sheetConfig.metaSheetName, googleSheetsCredentialId),
+          api.getSheetRawData(spreadsheetId, sheetConfig.ga4SheetName, googleSheetsCredentialId),
+          api.getSheetRawData(spreadsheetId, sheetConfig.shopifySheetName, googleSheetsCredentialId),
         ])
 
-        if (!metaRes.success || !metaRes.data) throw new Error(metaRes.error || 'Failed to load Meta data')
-        if (!ga4Res.success || !ga4Res.data) throw new Error(ga4Res.error || 'Failed to load GA4 data')
-        if (!shopifyRes.success || !shopifyRes.data) throw new Error(shopifyRes.error || 'Failed to load Shopify data')
+        // Extract data from settled promises, defaulting to empty arrays for failures
+        const metaData = results[0].status === 'fulfilled' && results[0].value.success && results[0].value.data 
+          ? results[0].value.data 
+          : []
+        const ga4Data = results[1].status === 'fulfilled' && results[1].value.success && results[1].value.data 
+          ? results[1].value.data 
+          : []
+        const shopifyData = results[2].status === 'fulfilled' && results[2].value.success && results[2].value.data 
+          ? results[2].value.data 
+          : []
 
+        // Collect any errors for display (but don't block)
+        const errors: string[] = []
+        if (results[0].status === 'rejected' || (results[0].status === 'fulfilled' && !results[0].value.success)) {
+          const err = results[0].status === 'rejected' 
+            ? results[0].reason?.message 
+            : results[0].value.error
+          if (err && !err.includes('not found') && !err.includes('404')) {
+            errors.push(`Meta: ${err}`)
+          }
+        }
+        if (results[1].status === 'rejected' || (results[1].status === 'fulfilled' && !results[1].value.success)) {
+          const err = results[1].status === 'rejected' 
+            ? results[1].reason?.message 
+            : results[1].value.error
+          if (err && !err.includes('not found') && !err.includes('404')) {
+            errors.push(`GA4: ${err}`)
+          }
+        }
+        if (results[2].status === 'rejected' || (results[2].status === 'fulfilled' && !results[2].value.success)) {
+          const err = results[2].status === 'rejected' 
+            ? results[2].reason?.message 
+            : results[2].value.error
+          if (err && !err.includes('not found') && !err.includes('404')) {
+            errors.push(`Shopify: ${err}`)
+          }
+        }
+
+        // Cache the results
         cacheRef.current = {
-          data: { meta: metaRes.data, ga4: ga4Res.data, shopify: shopifyRes.data },
+          data: { meta: metaData, ga4: ga4Data, shopify: shopifyData },
           fetchedAt: now,
         }
 
-        setRawMeta(metaRes.data)
-        setRawGa4(ga4Res.data)
-        setRawShopify(shopifyRes.data)
+        setRawMeta(metaData)
+        setRawGa4(ga4Data)
+        setRawShopify(shopifyData)
 
         setData({
           meta: [],
           ga4: [],
           shopify: [],
           isLoading: false,
-          error: null,
+          error: errors.length > 0 ? errors.join('; ') : null,
           lastSynced: new Date(now),
         })
       } catch (error) {
@@ -203,7 +257,7 @@ export function useDashboardData(dateRange: DateRange) {
         }))
       }
     },
-    [sheetConfig, configLoading]
+    [sheetConfig, configLoading, googleSheetsCredentialId]
   )
 
   useEffect(() => {

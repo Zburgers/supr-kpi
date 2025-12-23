@@ -1,11 +1,11 @@
 /**
  * Centralized API Client
- * 
+ *
  * All API calls should go through this module to ensure:
  * - Consistent authentication (Clerk JWT)
  * - Unified error handling
  * - Type safety
- * 
+ *
  * @module api
  */
 
@@ -45,12 +45,12 @@ export async function fetchApi<T>(
 ): Promise<ApiResponse<T>> {
   try {
     const token = getAuthToken ? await getAuthToken() : null
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options?.headers,
     }
-    
+
     if (token) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
     }
@@ -72,7 +72,7 @@ export async function fetchApi<T>(
     }
 
     const data = await response.json()
-    
+
     // Normalize response format
     if (!response.ok && !data.error) {
       return {
@@ -81,7 +81,7 @@ export async function fetchApi<T>(
         ...data,
       }
     }
-    
+
     return data
   } catch (error) {
     return {
@@ -243,21 +243,69 @@ export async function setSheetMapping(data: {
 // Spreadsheets & Sheets (Google Sheets Integration)
 // ============================================================================
 
-export async function listSpreadsheets(credentialId?: string): Promise<ApiResponse<SpreadsheetInfo[]>> {
-  const query = credentialId ? `?credential_id=${credentialId}` : ''
-  return fetchApi<SpreadsheetInfo[]>(`/spreadsheets${query}`)
+/**
+ * List spreadsheets accessible by the user's Google Sheets credential
+ * @param credentialId - Required credential ID to use for the request
+ */
+export async function listSpreadsheets(credentialId: string): Promise<ApiResponse<SpreadsheetInfo[]>> {
+  if (!credentialId) {
+    return {
+      success: false,
+      error: 'Google Sheets credential is required to list spreadsheets. Please configure a Sheets credential.',
+    }
+  }
+
+  const query = new URLSearchParams({
+    credential_id: credentialId,
+  }).toString()
+
+  return fetchApi<SpreadsheetInfo[]>(`/sheets/spreadsheets?${query}`)
 }
 
-export async function getSheetNames(spreadsheetId: string, credentialId?: string): Promise<ApiResponse<SheetInfo[]>> {
-  const query = credentialId ? `?credential_id=${credentialId}` : ''
-  return fetchApi<SheetInfo[]>(`/sheets/${spreadsheetId}${query}`)
+/**
+ * Get sheet names within a spreadsheet
+ * @param spreadsheetId - The Google Sheets spreadsheet ID
+ * @param credentialId - Required credential ID to use for the request
+ */
+export async function getSheetNames(spreadsheetId: string, credentialId: string): Promise<ApiResponse<SheetInfo[]>> {
+  if (!credentialId) {
+    return {
+      success: false,
+      error: 'Google Sheets credential is required to get sheet names. Please configure a Sheets credential.',
+    }
+  }
+
+  const query = new URLSearchParams({
+    credential_id: credentialId,
+  }).toString()
+
+  return fetchApi<SheetInfo[]>(`/sheets/${spreadsheetId}/sheets?${query}`)
 }
 
+/**
+ * Get raw sheet data using stored credentials
+ * @param spreadsheetId - The Google Sheets spreadsheet ID
+ * @param sheetName - The name of the sheet to read
+ * @param credentialId - Optional credential ID to use for the request (if not provided, falls back to legacy endpoint)
+ */
 export async function getSheetRawData(
   spreadsheetId: string,
-  sheetName: string
+  sheetName: string,
+  credentialId?: string
 ): Promise<ApiResponse<string[][]>> {
-  return fetchApi<string[][]>(`/data/raw/${spreadsheetId}/${encodeURIComponent(sheetName)}`)
+  if (!credentialId) {
+    return {
+      success: false,
+      error: 'Google Sheets credential is required to read data. Please configure a Sheets credential.',
+    }
+  }
+
+  const query = new URLSearchParams({
+    credential_id: credentialId,
+    sheetName: sheetName,
+  }).toString()
+
+  return fetchApi<string[][]>(`/sheets/${spreadsheetId}/values?${query}`)
 }
 
 // ============================================================================
@@ -286,60 +334,11 @@ export async function syncService(service: 'meta' | 'ga4' | 'shopify', options?:
 /**
  * Sync all enabled services
  */
-export async function syncAllServices(): Promise<ApiResponse<{ 
+export async function syncAllServices(): Promise<ApiResponse<{
   results: Array<{ service: string; success: boolean; error?: string }>
 }>> {
   return fetchApi('/v1/sync/all', {
     method: 'POST',
-  })
-}
-
-// ============================================================================
-// Legacy Direct Sync (Deprecated - for backward compatibility only)
-// TODO: Remove after full migration to stored credentials
-// ============================================================================
-
-/** @deprecated Use syncService('meta') instead */
-export async function syncMeta(params: {
-  accessToken: string
-  spreadsheetId?: string
-  sheetName?: string
-  targetDate?: string
-}): Promise<ApiResponse<{ metrics: MetaRawDaily; appendResult: SyncResult }>> {
-  console.warn('syncMeta is deprecated. Use syncService("meta") with stored credentials.')
-  return fetchApi('/v1/sync/meta/direct', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  })
-}
-
-/** @deprecated Use syncService('ga4') instead */
-export async function syncGA4(params: {
-  accessToken: string
-  propertyId: string
-  spreadsheetId?: string
-  sheetName?: string
-  targetDate?: string
-}): Promise<ApiResponse<{ metrics: GA4RawDaily; appendResult: SyncResult }>> {
-  console.warn('syncGA4 is deprecated. Use syncService("ga4") with stored credentials.')
-  return fetchApi('/v1/sync/ga4/direct', {
-    method: 'POST',
-    body: JSON.stringify(params),
-  })
-}
-
-/** @deprecated Use syncService('shopify') instead */
-export async function syncShopify(params: {
-  storeDomain: string
-  accessToken: string
-  spreadsheetId?: string
-  sheetName?: string
-  targetDate?: string
-}): Promise<ApiResponse<{ metrics: ShopifyRawDaily; appendResult: SyncResult }>> {
-  console.warn('syncShopify is deprecated. Use syncService("shopify") with stored credentials.')
-  return fetchApi('/v1/sync/shopify/direct', {
-    method: 'POST',
-    body: JSON.stringify(params),
   })
 }
 
@@ -436,13 +435,13 @@ export const mcpStub = {
 export const libraryStub = {
   // TODO: Meta Marketing API SDK
   // meta: { fetchInsights: async () => {} },
-  
-  // TODO: Google Analytics Data API SDK  
+
+  // TODO: Google Analytics Data API SDK
   // ga4: { runReport: async () => {} },
-  
+
   // TODO: Shopify Admin API SDK
   // shopify: { fetchOrders: async () => {} },
-  
+
   // TODO: Google Sheets API SDK
   // sheets: { appendRows: async () => {} },
 }
