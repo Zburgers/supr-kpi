@@ -21,11 +21,23 @@ The API uses service account authentication. No API key in URL needed.
 
 ---
 
-## Working with Spreadsheets
+## Working with Spreadsheets (New Credential-Based Approach - Recommended)
 
-### List All Accessible Spreadsheets
+### List All Accessible Spreadsheets with Stored Credentials
 
-Get all spreadsheets the service account can access.
+Get all spreadsheets accessible by stored credentials.
+
+**Request**:
+```bash
+# Using a stored credential ID
+CREDENTIAL_ID="123"
+
+curl -X GET "http://localhost:3000/api/sheets/spreadsheets?credential_id=${CREDENTIAL_ID}"
+```
+
+### Working with Spreadsheets (Legacy - Deprecated)
+
+The old approach without credential ID is deprecated:
 
 **Request**:
 ```bash
@@ -59,11 +71,23 @@ curl -X GET http://localhost:3000/api/spreadsheets
 
 ---
 
-## Working with Sheets
+## Working with Sheets (New Credential-Based Approach - Recommended)
 
-### Get Sheet Names from Spreadsheet
+### Get Sheet Names from Spreadsheet with Stored Credentials
 
-List all sheets within a spreadsheet.
+List all sheets within a spreadsheet using stored credentials.
+
+**Request**:
+```bash
+SHEET_ID="1mH8x-FjYJ2k3L5m6N8p9Q0r1S2t3U4v5W6x7Y8z9"
+CREDENTIAL_ID="123"
+
+curl -X GET "http://localhost:3000/api/sheets/${SHEET_ID}/sheets?credential_id=${CREDENTIAL_ID}"
+```
+
+### Working with Sheets (Legacy - Deprecated)
+
+The old approach without credential ID is deprecated:
 
 **Request**:
 ```bash
@@ -104,11 +128,25 @@ curl -X GET "http://localhost:3000/api/sheets/${SHEET_ID}"
 
 ---
 
-## Reading Data
+## Reading Data (New Credential-Based Approach - Recommended)
 
-### Read All Data from a Sheet
+### Read Raw Data from a Sheet with Stored Credentials
 
-Fetch all rows from a specific sheet (headers + data).
+Fetch raw values from a specific sheet using stored credentials.
+
+**Request**:
+```bash
+SHEET_ID="1mH8x-FjYJ2k3L5m6N8p9Q0r1S2t3U4v5W6x7Y8z9"
+SHEET_NAME="meta_raw_daily"
+CREDENTIAL_ID="123"
+
+curl -X GET \
+  "http://localhost:3000/api/sheets/${SHEET_ID}/values?credential_id=${CREDENTIAL_ID}&sheetName=${SHEET_NAME}"
+```
+
+### Reading Data (Legacy - Deprecated)
+
+The old approach without credential ID is deprecated:
 
 **Request**:
 ```bash

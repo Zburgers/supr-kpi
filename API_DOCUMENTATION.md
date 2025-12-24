@@ -219,6 +219,51 @@ Authorization: Bearer <jwt_token>
   ```
 - **Response**: Sync job status
 
+#### POST `/api/v1/sync/meta/direct`
+- **Description**: Direct Meta sync (bypasses queue - for testing/debugging) - now requires stored credentials
+- **Authentication**: Required
+- **Request Body**:
+  ```json
+  {
+    "accessToken": "string",
+    "accountId": "string",
+    "targetDate": "string (YYYY-MM-DD, optional)",
+    "spreadsheetId": "string (optional)",
+    "sheetName": "string (optional)"
+  }
+  ```
+- **Response**: Sync result with status information
+
+#### POST `/api/v1/sync/ga4/direct`
+- **Description**: Direct GA4 sync (bypasses queue - for testing/debugging) - now requires stored credentials
+- **Authentication**: Required
+- **Request Body**:
+  ```json
+  {
+    "accessToken": "string",
+    "propertyId": "string",
+    "targetDate": "string (YYYY-MM-DD, optional)",
+    "spreadsheetId": "string (optional)",
+    "sheetName": "string (optional)"
+  }
+  ```
+- **Response**: Sync result with status information
+
+#### POST `/api/v1/sync/shopify/direct`
+- **Description**: Direct Shopify sync (bypasses queue - for testing/debugging) - now requires stored credentials
+- **Authentication**: Required
+- **Request Body**:
+  ```json
+  {
+    "storeDomain": "string",
+    "accessToken": "string",
+    "targetDate": "string (YYYY-MM-DD, optional)",
+    "spreadsheetId": "string (optional)",
+    "sheetName": "string (optional)"
+  }
+  ```
+- **Response**: Sync result with status information
+
 ### Job Management
 
 #### GET `/api/v1/jobs/:jobId`
@@ -232,21 +277,45 @@ Authorization: Bearer <jwt_token>
 - **Authentication**: Required
 - **Response**: Queue statistics
 
-### Legacy Google Sheets
+### Google Sheets with Stored Credentials (Recommended)
+
+#### GET `/api/sheets/spreadsheets`
+- **Description**: List spreadsheets using stored credentials
+- **Authentication**: Required
+- **Query Parameter**: `credential_id` - The ID of the stored credential to use (required)
+- **Response**: Array of spreadsheet objects
+
+#### GET `/api/sheets/:spreadsheetId/sheets`
+- **Description**: Get sheet names for a spreadsheet using stored credentials
+- **Authentication**: Required
+- **Path Parameter**: `spreadsheetId` - The spreadsheet ID
+- **Query Parameter**: `credential_id` - The ID of the stored credential to use (required)
+- **Response**: Array of sheet objects
+
+#### GET `/api/sheets/:spreadsheetId/values`
+- **Description**: Read raw sheet values using stored credentials
+- **Authentication**: Required
+- **Path Parameter**: `spreadsheetId` - The spreadsheet ID
+- **Query Parameters**:
+  - `credential_id` - The ID of the stored credential to use (required)
+  - `sheetName` - The sheet name (required)
+- **Response**: Raw sheet values
+
+### Legacy Google Sheets (Deprecated)
 
 #### GET `/api/spreadsheets`
-- **Description**: List spreadsheets
+- **Description**: List spreadsheets (deprecated - use `/api/sheets/spreadsheets` with credential_id)
 - **Authentication**: Required
 - **Response**: Array of spreadsheet objects
 
 #### GET `/api/sheets/:spreadsheetId`
-- **Description**: Get sheet names for a spreadsheet
+- **Description**: Get sheet names for a spreadsheet (deprecated - use `/api/sheets/:spreadsheetId/sheets` with credential_id)
 - **Authentication**: Required
 - **Path Parameter**: `spreadsheetId` - The spreadsheet ID
 - **Response**: Array of sheet objects
 
 #### GET `/api/data/:spreadsheetId/:sheetName`
-- **Description**: Read sheet data
+- **Description**: Read sheet data (deprecated - use `/api/sheets/:spreadsheetId/values` with credential_id)
 - **Authentication**: Required
 - **Path Parameters**:
   - `spreadsheetId` - The spreadsheet ID
@@ -254,7 +323,7 @@ Authorization: Bearer <jwt_token>
 - **Response**: Sheet data
 
 #### GET `/api/data/raw/:spreadsheetId/:sheetName`
-- **Description**: Read raw sheet values
+- **Description**: Read raw sheet values (deprecated - use `/api/sheets/:spreadsheetId/values` with credential_id)
 - **Authentication**: Required
 - **Path Parameters**:
   - `spreadsheetId` - The spreadsheet ID
