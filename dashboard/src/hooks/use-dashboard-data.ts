@@ -28,7 +28,7 @@ interface CalculatedMetrics {
 }
 
 export function useDashboardData(dateRange: DateRange) {
-  const { sheetConfig, googleSheetsCredentialId, isConfigured, loading: configLoading } = useServiceConfig()
+  const { services: serviceConfig, sheetConfig, googleSheetsCredentialId, isConfigured, loading: configLoading } = useServiceConfig()
   const [data, setData] = useState<DashboardData>({
     meta: [],
     ga4: [],
@@ -277,8 +277,20 @@ export function useDashboardData(dateRange: DateRange) {
       setData((prev) => ({ ...prev, isLoading: true }))
 
       try {
-        // Use modern syncService which uses stored credentials from backend
-        const result = await api.syncService(platform)
+        // For GA4, we need to get the credentialId from service configuration
+        let result;
+        if (platform === 'ga4') {
+          const ga4CredentialId = serviceConfig.services.ga4.credentialId;
+          if (!ga4CredentialId) {
+            return { success: false, error: 'GA4 credential ID not found. Please reconfigure GA4 in Settings.' };
+          }
+
+          // Use modern syncService which uses stored credentials from backend
+          result = await api.syncService(platform, { credentialId: ga4CredentialId })
+        } else {
+          // Use modern syncService which uses stored credentials from backend
+          result = await api.syncService(platform)
+        }
 
         if (result.success) {
           cacheRef.current = null
@@ -296,7 +308,7 @@ export function useDashboardData(dateRange: DateRange) {
         return { success: false, error: 'Sync failed' }
       }
     },
-    [isConfigured, fetchData]
+    [isConfigured, serviceConfig, fetchData]
   )
 
   const syncAll = useCallback(async () => {

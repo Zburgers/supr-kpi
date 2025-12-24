@@ -326,10 +326,43 @@ export interface SyncResponse {
 export async function syncService(service: 'meta' | 'ga4' | 'shopify', options?: {
   targetDate?: string
   force?: boolean
+  credentialId?: string // For GA4 service when using new endpoint
+  spreadsheetId?: string
+  sheetName?: string
 }): Promise<ApiResponse<SyncResponse>> {
+  // For GA4, use the new endpoint that handles service account authentication
+  if (service === 'ga4' && options?.credentialId) {
+    // Call the new GA4 endpoint which requires credentialId
+    const ga4Options: {
+      credentialId: string
+      options?: {
+        spreadsheetId?: string
+        sheetName?: string
+      }
+    } = {
+      credentialId: options.credentialId,
+    };
+
+    // Add optional parameters if they exist
+    if (options.spreadsheetId || options.sheetName) {
+      ga4Options.options = {};
+      if (options.spreadsheetId) ga4Options.options.spreadsheetId = options.spreadsheetId;
+      if (options.sheetName) ga4Options.options.sheetName = options.sheetName;
+    }
+
+    return fetchApi<SyncResponse>('/ga4/sync', {
+      method: 'POST',
+      body: JSON.stringify(ga4Options),
+    })
+  }
+
+  // For other services or when credentialId is not provided, use the old endpoint
   return fetchApi<SyncResponse>(`/v1/sync/${service}`, {
     method: 'POST',
-    body: JSON.stringify(options || {}),
+    body: JSON.stringify({
+      targetDate: options?.targetDate,
+      force: options?.force,
+    }),
   })
 }
 

@@ -25,7 +25,7 @@ interface PullResult {
 }
 
 export function ManualPullDialog() {
-  const { isConfigured, loading: configLoading } = useServiceConfig()
+  const { services: serviceConfig, isConfigured, loading: configLoading } = useServiceConfig()
   const [open, setOpen] = useState(false)
   const [targetDate, setTargetDate] = useState<string>(() => {
     const yesterday = new Date()
@@ -42,7 +42,7 @@ export function ManualPullDialog() {
 
   const pullPlatform = async (platform: 'meta' | 'ga4' | 'shopify') => {
     const platformName = platform === 'meta' ? 'Meta' : platform === 'ga4' ? 'GA4' : 'Shopify'
-    
+
     if (!isConfigured(platform)) {
       setResults(prev => [...prev, {
         platform: platformName,
@@ -54,8 +54,28 @@ export function ManualPullDialog() {
 
     setIsPulling(prev => ({ ...prev, [platform]: true }))
     try {
-      // Use modern syncService which uses stored credentials from backend
-      const response = await api.syncService(platform, { targetDate })
+      // For GA4, we need to pass the credentialId from service configuration
+      let response;
+      if (platform === 'ga4') {
+        const ga4CredentialId = serviceConfig.ga4.credentialId;
+        if (!ga4CredentialId) {
+          setResults(prev => [...prev, {
+            platform: platformName,
+            success: false,
+            message: 'GA4 credential ID not found. Please reconfigure GA4 in Settings.',
+          }]);
+          return;
+        }
+
+        // Use modern syncService which uses stored credentials from backend
+        response = await api.syncService(platform, {
+          targetDate,
+          credentialId: ga4CredentialId
+        });
+      } else {
+        // Use modern syncService which uses stored credentials from backend
+        response = await api.syncService(platform, { targetDate });
+      }
 
       // Check if the response contains job information (queued) vs direct sync result
       let finalMessage = '';
