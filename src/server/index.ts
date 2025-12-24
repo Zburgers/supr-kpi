@@ -219,19 +219,15 @@ app.get("/api/health", (_req: Request, res: Response) => {
 });
 
 /**
- * Initialize sheets service
- * Must be called before any operations
+ * Initialize sheets service - DEPRECATED
+ * This endpoint is deprecated and will be removed in future versions.
+ * Sheets authentication should now be handled with user-specific credentials.
  */
 app.get("/api/init", async (_req: Request, res: Response) => {
-  try {
-    await sheetsService.initialize();
-    res.json({ success: true, message: "Service initialized" });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
+  res.status(410).json({
+    success: false,
+    error: "This endpoint is deprecated. Sheets authentication should now be handled with user-specific credentials via the credential management system."
+  });
 });
 
 /**

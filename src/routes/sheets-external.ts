@@ -1,9 +1,9 @@
 /**
  * Sheets Routes with Credential Support
  *
- * Handles Google Sheets operations using either stored credentials or global service account.
- * These endpoints can accept a credential_id parameter to use specific stored credentials
- * instead of the global environment-based service account.
+ * Handles Google Sheets operations using stored credentials only.
+ * These endpoints require a credential_id parameter to use specific stored credentials
+ * from the user's database records.
  *
  * Security:
  * - All endpoints require JWT authentication
@@ -20,7 +20,6 @@ import { JWT } from 'google-auth-library';
 import { logger } from '../lib/logger.js';
 import { SheetMetadata } from '../types/kpi.js';
 import { ErrorResponse, ErrorCode } from '../types/api.js';
-import { sheetsService } from '../services/sheets.js'; // Import the global sheets service for fallback
 
 const router = Router();
 
@@ -75,8 +74,8 @@ async function initializeSheetServiceWithCredential(credentialId: number, userId
 
 // ============================================================================
 // GET /api/sheets/spreadsheets
-// Get spreadsheets using stored credential (if provided) or global service account
-// Query parameter: credential_id (optional)
+// Get spreadsheets using stored credential
+// Query parameter: credential_id (required)
 // ============================================================================
 
 router.get('/spreadsheets', authenticate, async (req: Request, res: Response): Promise<void> => {
@@ -85,40 +84,43 @@ router.get('/spreadsheets', authenticate, async (req: Request, res: Response): P
   try {
     const { credential_id } = req.query;
 
-    if (credential_id) {
-      // Use stored credential
-      const credentialId = parseInt(credential_id as string);
-      if (isNaN(credentialId)) {
-        res.status(400).json({
-          error: 'credential_id must be a number',
-          code: ErrorCode.INVALID_JSON,
-        } as ErrorResponse);
-        return;
-      }
-
-      // Initialize sheets service with the stored credential
-      const { drive } = await initializeSheetServiceWithCredential(credentialId, req.user!.userId);
-
-      // List spreadsheets accessible by this credential
-      const driveResponse = await drive.files.list({
-        q: "mimeType='application/vnd.google-apps.spreadsheet'",
-        spaces: 'drive',
-        fields: 'files(id, name)',
-        pageSize: 100,
-      });
-
-      const spreadsheets = (driveResponse.data.files || []).map((file) => ({
-        id: file.id || '',
-        name: file.name || '',
-        sheetId: 0, // This field might not be relevant for top-level spreadsheets
-      }));
-
-      res.json({ success: true, data: spreadsheets });
-    } else {
-      // Use global service account (legacy behavior)
-      const spreadsheets = await sheetsService.listSpreadsheets();
-      res.json({ success: true, data: spreadsheets });
+    // credential_id is now required
+    if (!credential_id) {
+      res.status(400).json({
+        error: 'credential_id is required',
+        code: ErrorCode.MISSING_FIELDS,
+      } as ErrorResponse);
+      return;
     }
+
+    // Use stored credential
+    const credentialId = parseInt(credential_id as string);
+    if (isNaN(credentialId)) {
+      res.status(400).json({
+        error: 'credential_id must be a number',
+        code: ErrorCode.INVALID_JSON,
+      } as ErrorResponse);
+      return;
+    }
+
+    // Initialize sheets service with the stored credential
+    const { drive } = await initializeSheetServiceWithCredential(credentialId, req.user!.userId);
+
+    // List spreadsheets accessible by this credential
+    const driveResponse = await drive.files.list({
+      q: "mimeType='application/vnd.google-apps.spreadsheet'",
+      spaces: 'drive',
+      fields: 'files(id, name)',
+      pageSize: 100,
+    });
+
+    const spreadsheets = (driveResponse.data.files || []).map((file) => ({
+      id: file.id || '',
+      name: file.name || '',
+      sheetId: 0, // This field might not be relevant for top-level spreadsheets
+    }));
+
+    res.json({ success: true, data: spreadsheets });
   } catch (error) {
     logger.error('Failed to list spreadsheets', { error: String(error) });
 
@@ -139,8 +141,8 @@ router.get('/spreadsheets', authenticate, async (req: Request, res: Response): P
 
 // ============================================================================
 // GET /api/sheets/:spreadsheetId/sheets
-// Get sheet names within a spreadsheet using stored credential or global service account
-// Query parameter: credential_id (optional)
+// Get sheet names within a spreadsheet using stored credential
+// Query parameter: credential_id (required)
 // ============================================================================
 
 router.get('/:spreadsheetId/sheets', authenticate, async (req: Request, res: Response): Promise<void> => {
@@ -158,37 +160,40 @@ router.get('/:spreadsheetId/sheets', authenticate, async (req: Request, res: Res
       return;
     }
 
-    if (credential_id) {
-      // Use stored credential
-      const credentialId = parseInt(credential_id as string);
-      if (isNaN(credentialId)) {
-        res.status(400).json({
-          error: 'credential_id must be a number',
-          code: ErrorCode.INVALID_JSON,
-        } as ErrorResponse);
-        return;
-      }
-
-      // Initialize sheets service with the stored credential
-      const { sheets } = await initializeSheetServiceWithCredential(credentialId, req.user!.userId);
-
-      // Get sheet names within the spreadsheet
-      const response = await sheets.spreadsheets.get({
-        spreadsheetId,
-      });
-
-      const sheetsMetadata: SheetMetadata[] = (response.data.sheets || []).map((sheet) => ({
-        id: spreadsheetId,
-        name: sheet.properties?.title || '',
-        sheetId: sheet.properties?.sheetId || 0,
-      }));
-
-      res.json({ success: true, data: sheetsMetadata });
-    } else {
-      // Use global service account (legacy behavior)
-      const sheets = await sheetsService.getSheetNames(spreadsheetId);
-      res.json({ success: true, data: sheets });
+    // credential_id is now required
+    if (!credential_id) {
+      res.status(400).json({
+        error: 'credential_id is required',
+        code: ErrorCode.MISSING_FIELDS,
+      } as ErrorResponse);
+      return;
     }
+
+    // Use stored credential
+    const credentialId = parseInt(credential_id as string);
+    if (isNaN(credentialId)) {
+      res.status(400).json({
+        error: 'credential_id must be a number',
+        code: ErrorCode.INVALID_JSON,
+      } as ErrorResponse);
+      return;
+    }
+
+    // Initialize sheets service with the stored credential
+    const { sheets } = await initializeSheetServiceWithCredential(credentialId, req.user!.userId);
+
+    // Get sheet names within the spreadsheet
+    const response = await sheets.spreadsheets.get({
+      spreadsheetId,
+    });
+
+    const sheetsMetadata: SheetMetadata[] = (response.data.sheets || []).map((sheet) => ({
+      id: spreadsheetId,
+      name: sheet.properties?.title || '',
+      sheetId: sheet.properties?.sheetId || 0,
+    }));
+
+    res.json({ success: true, data: sheetsMetadata });
   } catch (error) {
     logger.error('Failed to get sheet names', {
       error: String(error),
@@ -212,8 +217,8 @@ router.get('/:spreadsheetId/sheets', authenticate, async (req: Request, res: Res
 
 // ============================================================================
 // GET /api/sheets/:spreadsheetId/values
-// Get raw values from a specific sheet using stored credential or global service account
-// Query parameters: credential_id (optional), sheetName (required)
+// Get raw values from a specific sheet using stored credential
+// Query parameters: credential_id (required), sheetName (required)
 // ============================================================================
 
 router.get('/:spreadsheetId/values', authenticate, async (req: Request, res: Response): Promise<void> => {
@@ -239,34 +244,37 @@ router.get('/:spreadsheetId/values', authenticate, async (req: Request, res: Res
       return;
     }
 
-    if (credential_id) {
-      // Use stored credential
-      const credentialId = parseInt(credential_id as string);
-      if (isNaN(credentialId)) {
-        res.status(400).json({
-          error: 'credential_id must be a number',
-          code: ErrorCode.INVALID_JSON,
-        } as ErrorResponse);
-        return;
-      }
-
-      // Initialize sheets service with the stored credential
-      const { sheets } = await initializeSheetServiceWithCredential(credentialId, req.user!.userId);
-
-      // Get raw values from the specific sheet
-      const range = `'${sheetName}'`;
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range,
-      });
-
-      const values = (response.data.values as (string | number | null)[][]) || [];
-      res.json({ success: true, data: values });
-    } else {
-      // Use global service account (legacy behavior)
-      const values = await sheetsService.getRawValues(spreadsheetId, sheetName as string);
-      res.json({ success: true, data: values });
+    // credential_id is now required
+    if (!credential_id) {
+      res.status(400).json({
+        error: 'credential_id is required',
+        code: ErrorCode.MISSING_FIELDS,
+      } as ErrorResponse);
+      return;
     }
+
+    // Use stored credential
+    const credentialId = parseInt(credential_id as string);
+    if (isNaN(credentialId)) {
+      res.status(400).json({
+        error: 'credential_id must be a number',
+        code: ErrorCode.INVALID_JSON,
+      } as ErrorResponse);
+      return;
+    }
+
+    // Initialize sheets service with the stored credential
+    const { sheets } = await initializeSheetServiceWithCredential(credentialId, req.user!.userId);
+
+    // Get raw values from the specific sheet
+    const range = `'${sheetName}'`;
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const values = (response.data.values as (string | number | null)[][]) || [];
+    res.json({ success: true, data: values });
   } catch (error) {
     logger.error('Failed to get sheet values', {
       error: String(error),

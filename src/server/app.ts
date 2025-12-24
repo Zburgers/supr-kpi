@@ -338,9 +338,12 @@ app.post('/api/v1/sync/shopify', authenticate, async (req: Request, res: Respons
  * Direct Meta sync (bypasses queue)
  * POST /api/v1/sync/meta/direct
  */
-app.post('/api/v1/sync/meta/direct', async (req: Request, res: Response) => {
+app.post('/api/v1/sync/meta/direct', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
-    const { accessToken, spreadsheetId, sheetName, targetDate } = req.body || {};
+    const { accessToken, accountId, spreadsheetId, sheetName, targetDate } = req.body || {};
+    const userId = req.user!.userId;
 
     if (!accessToken) {
       res.status(400).json({
@@ -350,12 +353,61 @@ app.post('/api/v1/sync/meta/direct', async (req: Request, res: Response) => {
       return;
     }
 
+    if (!accountId) {
+      res.status(400).json({
+        success: false,
+        error: 'accountId is required',
+      });
+      return;
+    }
+
+    // Dynamically import database functions
+    const { executeQuery } = await import('../lib/database.js');
+    const { decryptCredential } = await import('../lib/encryption.js');
+
+    // Fetch the credential from the database
+    const serviceConfigResult = await executeQuery(
+      `SELECT credential_id FROM service_configs
+       WHERE service = 'meta' AND user_id = $1 AND enabled = true
+       LIMIT 1`,
+      [userId],
+      userId
+    );
+
+    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
+      res.status(400).json({
+        success: false,
+        error: 'No enabled Meta service configuration found. Please configure credentials in the dashboard.',
+      });
+      return;
+    }
+
+    const credentialId = serviceConfigResult.rows[0].credential_id;
+    const credentialResult = await executeQuery(
+      `SELECT encrypted_data FROM credentials
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [credentialId, userId],
+      userId
+    );
+
+    if (credentialResult.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: `Credential with ID ${credentialId} not found in database`,
+      });
+      return;
+    }
+
+    const encryptedData = credentialResult.rows[0].encrypted_data;
+    const credentialJson = decryptCredential(encryptedData, String(userId));
+
     const result = await metaAdapter.sync({
       accessToken,
+      accountId,
       targetDate,
       spreadsheetId,
       sheetName,
-    });
+    }, credentialJson);
 
     res.json({
       success: result.success,
@@ -376,9 +428,12 @@ app.post('/api/v1/sync/meta/direct', async (req: Request, res: Response) => {
  * Direct GA4 sync (bypasses queue)
  * POST /api/v1/sync/ga4/direct
  */
-app.post('/api/v1/sync/ga4/direct', async (req: Request, res: Response) => {
+app.post('/api/v1/sync/ga4/direct', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
     const { accessToken, propertyId, spreadsheetId, sheetName, targetDate } = req.body || {};
+    const userId = req.user!.userId;
 
     if (!accessToken || !propertyId) {
       res.status(400).json({
@@ -388,13 +443,53 @@ app.post('/api/v1/sync/ga4/direct', async (req: Request, res: Response) => {
       return;
     }
 
+    // Dynamically import database functions
+    const { executeQuery } = await import('../lib/database.js');
+    const { decryptCredential } = await import('../lib/encryption.js');
+
+    // Fetch the credential from the database
+    const serviceConfigResult = await executeQuery(
+      `SELECT credential_id FROM service_configs
+       WHERE service = 'ga4' AND user_id = $1 AND enabled = true
+       LIMIT 1`,
+      [userId],
+      userId
+    );
+
+    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
+      res.status(400).json({
+        success: false,
+        error: 'No enabled GA4 service configuration found. Please configure credentials in the dashboard.',
+      });
+      return;
+    }
+
+    const credentialId = serviceConfigResult.rows[0].credential_id;
+    const credentialResult = await executeQuery(
+      `SELECT encrypted_data FROM credentials
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [credentialId, userId],
+      userId
+    );
+
+    if (credentialResult.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: `Credential with ID ${credentialId} not found in database`,
+      });
+      return;
+    }
+
+    const encryptedData = credentialResult.rows[0].encrypted_data;
+    const credentialJson = decryptCredential(encryptedData, String(userId));
+
     const result = await ga4Adapter.sync({
       accessToken,
       propertyId,
       targetDate,
       spreadsheetId,
       sheetName,
-    });
+    }, credentialJson);
 
     res.json({
       success: result.success,
@@ -415,9 +510,12 @@ app.post('/api/v1/sync/ga4/direct', async (req: Request, res: Response) => {
  * Direct Shopify sync (bypasses queue)
  * POST /api/v1/sync/shopify/direct
  */
-app.post('/api/v1/sync/shopify/direct', async (req: Request, res: Response) => {
+app.post('/api/v1/sync/shopify/direct', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
     const { storeDomain, accessToken, spreadsheetId, sheetName, targetDate } = req.body || {};
+    const userId = req.user!.userId;
 
     if (!storeDomain || !accessToken) {
       res.status(400).json({
@@ -427,13 +525,53 @@ app.post('/api/v1/sync/shopify/direct', async (req: Request, res: Response) => {
       return;
     }
 
+    // Dynamically import database functions
+    const { executeQuery } = await import('../lib/database.js');
+    const { decryptCredential } = await import('../lib/encryption.js');
+
+    // Fetch the credential from the database
+    const serviceConfigResult = await executeQuery(
+      `SELECT credential_id FROM service_configs
+       WHERE service = 'shopify' AND user_id = $1 AND enabled = true
+       LIMIT 1`,
+      [userId],
+      userId
+    );
+
+    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
+      res.status(400).json({
+        success: false,
+        error: 'No enabled Shopify service configuration found. Please configure credentials in the dashboard.',
+      });
+      return;
+    }
+
+    const credentialId = serviceConfigResult.rows[0].credential_id;
+    const credentialResult = await executeQuery(
+      `SELECT encrypted_data FROM credentials
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [credentialId, userId],
+      userId
+    );
+
+    if (credentialResult.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: `Credential with ID ${credentialId} not found in database`,
+      });
+      return;
+    }
+
+    const encryptedData = credentialResult.rows[0].encrypted_data;
+    const credentialJson = decryptCredential(encryptedData, String(userId));
+
     const result = await shopifyAdapter.sync({
       storeDomain,
       accessToken,
       targetDate,
       spreadsheetId,
       sheetName,
-    });
+    }, credentialJson);
 
     res.json({
       success: result.success,
@@ -653,9 +791,12 @@ app.get('/api/data/raw/:spreadsheetId/:sheetName', authenticate, async (req: Req
 /**
  * Legacy Meta fetch (uses old workflow)
  */
-app.post('/api/meta/fetch', async (req: Request, res: Response) => {
+app.post('/api/meta/fetch', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
     const { accessToken, spreadsheetId, sheetName } = req.body || {};
+    const userId = req.user!.userId;
 
     if (!accessToken) {
       res.status(400).json({
@@ -665,10 +806,50 @@ app.post('/api/meta/fetch', async (req: Request, res: Response) => {
       return;
     }
 
+    // Dynamically import database functions
+    const { executeQuery } = await import('../lib/database.js');
+    const { decryptCredential } = await import('../lib/encryption.js');
+
+    // Fetch the credential from the database
+    const serviceConfigResult = await executeQuery(
+      `SELECT credential_id FROM service_configs
+       WHERE service = 'meta' AND user_id = $1 AND enabled = true
+       LIMIT 1`,
+      [userId],
+      userId
+    );
+
+    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
+      res.status(400).json({
+        success: false,
+        error: 'No enabled Meta service configuration found. Please configure credentials in the dashboard.',
+      });
+      return;
+    }
+
+    const credentialId = serviceConfigResult.rows[0].credential_id;
+    const credentialResult = await executeQuery(
+      `SELECT encrypted_data FROM credentials
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [credentialId, userId],
+      userId
+    );
+
+    if (credentialResult.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: `Credential with ID ${credentialId} not found in database`,
+      });
+      return;
+    }
+
+    const encryptedData = credentialResult.rows[0].encrypted_data;
+    const credentialJson = decryptCredential(encryptedData, String(userId));
+
     const result = await metaInsightsWorkflow.runWorkflow(accessToken, {
       spreadsheetId: spreadsheetId || undefined,
       sheetName: sheetName || undefined,
-    });
+    }, credentialJson);
 
     res.json({
       success: true,
@@ -688,9 +869,12 @@ app.post('/api/meta/fetch', async (req: Request, res: Response) => {
 /**
  * Legacy Shopify fetch
  */
-app.post('/api/shopify/fetch', async (req: Request, res: Response) => {
+app.post('/api/shopify/fetch', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
     const { storeDomain, accessToken, spreadsheetId, sheetName } = req.body || {};
+    const userId = req.user!.userId;
 
     if (!storeDomain || !accessToken) {
       res.status(400).json({
@@ -700,10 +884,50 @@ app.post('/api/shopify/fetch', async (req: Request, res: Response) => {
       return;
     }
 
+    // Dynamically import database functions
+    const { executeQuery } = await import('../lib/database.js');
+    const { decryptCredential } = await import('../lib/encryption.js');
+
+    // Fetch the credential from the database
+    const serviceConfigResult = await executeQuery(
+      `SELECT credential_id FROM service_configs
+       WHERE service = 'shopify' AND user_id = $1 AND enabled = true
+       LIMIT 1`,
+      [userId],
+      userId
+    );
+
+    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
+      res.status(400).json({
+        success: false,
+        error: 'No enabled Shopify service configuration found. Please configure credentials in the dashboard.',
+      });
+      return;
+    }
+
+    const credentialId = serviceConfigResult.rows[0].credential_id;
+    const credentialResult = await executeQuery(
+      `SELECT encrypted_data FROM credentials
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [credentialId, userId],
+      userId
+    );
+
+    if (credentialResult.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: `Credential with ID ${credentialId} not found in database`,
+      });
+      return;
+    }
+
+    const encryptedData = credentialResult.rows[0].encrypted_data;
+    const credentialJson = decryptCredential(encryptedData, String(userId));
+
     const result = await shopifyWorkflow.runWorkflow(storeDomain, accessToken, {
       spreadsheetId: spreadsheetId || undefined,
       sheetName: sheetName || undefined,
-    });
+    }, credentialJson);
 
     res.json({
       success: true,
@@ -723,9 +947,12 @@ app.post('/api/shopify/fetch', async (req: Request, res: Response) => {
 /**
  * Legacy Google Analytics fetch
  */
-app.post('/api/google/fetch', async (req: Request, res: Response) => {
+app.post('/api/google/fetch', authenticate, async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+
   try {
     const { accessToken, propertyId, spreadsheetId, sheetName } = req.body || {};
+    const userId = req.user!.userId;
 
     if (!accessToken || !propertyId) {
       res.status(400).json({
@@ -735,10 +962,50 @@ app.post('/api/google/fetch', async (req: Request, res: Response) => {
       return;
     }
 
+    // Dynamically import database functions
+    const { executeQuery } = await import('../lib/database.js');
+    const { decryptCredential } = await import('../lib/encryption.js');
+
+    // Fetch the credential from the database
+    const serviceConfigResult = await executeQuery(
+      `SELECT credential_id FROM service_configs
+       WHERE service = 'ga4' AND user_id = $1 AND enabled = true
+       LIMIT 1`,
+      [userId],
+      userId
+    );
+
+    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
+      res.status(400).json({
+        success: false,
+        error: 'No enabled GA4 service configuration found. Please configure credentials in the dashboard.',
+      });
+      return;
+    }
+
+    const credentialId = serviceConfigResult.rows[0].credential_id;
+    const credentialResult = await executeQuery(
+      `SELECT encrypted_data FROM credentials
+       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [credentialId, userId],
+      userId
+    );
+
+    if (credentialResult.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: `Credential with ID ${credentialId} not found in database`,
+      });
+      return;
+    }
+
+    const encryptedData = credentialResult.rows[0].encrypted_data;
+    const credentialJson = decryptCredential(encryptedData, String(userId));
+
     const result = await googleAnalyticsWorkflow.runWorkflow(accessToken, propertyId, {
       spreadsheetId: spreadsheetId || undefined,
       sheetName: sheetName || undefined,
-    });
+    }, credentialJson);
 
     res.json({
       success: true,
