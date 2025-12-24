@@ -280,7 +280,7 @@ export function useDashboardData(dateRange: DateRange) {
         // For GA4, we need to get the credentialId from service configuration
         let result;
         if (platform === 'ga4') {
-          const ga4CredentialId = serviceConfig.services.ga4.credentialId;
+          const ga4CredentialId = serviceConfig.ga4.credentialId;
           if (!ga4CredentialId) {
             return { success: false, error: 'GA4 credential ID not found. Please reconfigure GA4 in Settings.' };
           }
