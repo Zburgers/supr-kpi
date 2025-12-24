@@ -140,94 +140,23 @@ class SheetsService {
   }
 
   /**
-   * Initialize authentication with service account
-   * Must be called before any sheet operations
-   *
-   * For production, credentials should be stored encrypted in the database
-   * and passed via the initializeWithCredentials method.
+   * Initialize authentication with service account - DEPRECATED
+   * This method is deprecated and will be removed in future versions.
+   * All credentials should now be managed through the initializeWithCredentials method.
    *
    * @returns {Promise<void>}
-   * @throws {Error} If service account credentials not found or invalid
+   * @throws {Error} This method is deprecated and should not be used
    */
   async initialize(): Promise<void> {
-    try {
-      if (this.initialized && this.auth && this.sheets && this.drive) {
-        return;
-      }
-
-      // Load credentials from environment ONLY - no hardcoded paths
-      const inlineJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-      const inlineJsonBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
-
-      // Optional: load from file specified in env (for local development)
-      const serviceAccountPath =
-        process.env.GOOGLE_SERVICE_ACCOUNT_PATH ||
-        process.env.GOOGLE_APPLICATION_CREDENTIALS;
-
-      let serviceAccountRaw: string | null = null;
-
-      if (inlineJson) {
-        serviceAccountRaw = inlineJson;
-      } else if (inlineJsonBase64) {
-        serviceAccountRaw = Buffer.from(inlineJsonBase64, "base64").toString(
-          "utf-8"
-        );
-      } else if (serviceAccountPath) {
-        // Only check file if path is explicitly provided via environment
-        if (!fs.existsSync(serviceAccountPath)) {
-          throw new Error(
-            `Service account file not found at ${serviceAccountPath}. ` +
-            `Set GOOGLE_SERVICE_ACCOUNT_JSON environment variable with the service account JSON, ` +
-            `or ensure the file exists at the path specified in GOOGLE_SERVICE_ACCOUNT_PATH.`
-          );
-        }
-
-        const stats = fs.statSync(serviceAccountPath);
-        if (stats.isDirectory()) {
-          throw new Error(
-            `Service account path points to a directory: ${serviceAccountPath}. ` +
-            `Please provide the path to a JSON file, not a directory.`
-          );
-        }
-
-        serviceAccountRaw = fs.readFileSync(serviceAccountPath, "utf-8");
-      }
-
-      if (!serviceAccountRaw) {
-        throw new Error(
-          `Google Sheets service account credentials not configured. ` +
-          `Please set one of: GOOGLE_SERVICE_ACCOUNT_JSON (inline JSON), ` +
-          `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 (base64 encoded), ` +
-          `or GOOGLE_SERVICE_ACCOUNT_PATH (file path).`
-        );
-      }
-
-      const serviceAccount = JSON.parse(serviceAccountRaw);
-
-      this.serviceAccountEmail = serviceAccount.client_email;
-
-      this.auth = new JWT({
-        email: serviceAccount.client_email,
-        key: serviceAccount.private_key,
-        scopes: [
-          "https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/drive.readonly",
-        ],
-      });
-
-      // Type cast to any to avoid auth type mismatch (known googleapis issue)
-      this.sheets = google.sheets({ version: "v4", auth: this.auth as any });
-      this.drive = google.drive({ version: "v3", auth: this.auth as any });
-
-      await this.auth.authorize();
-      this.initialized = true;
-      console.log(
-        `✓ Google Sheets authentication initialized for ${this.serviceAccountEmail}`
-      );
-    } catch (error) {
-      console.error("Failed to initialize Google Sheets:", error);
-      throw error;
-    }
+    console.warn(
+      "⚠️  WARNING: The initialize() method is deprecated. " +
+      "All credentials should now be managed through initializeWithCredentials() method " +
+      "using user-stored credentials from the database."
+    );
+    throw new Error(
+      "The initialize() method is deprecated. Please use initializeWithCredentials() " +
+      "with credentials stored in the database instead."
+    );
   }
 
   /**
@@ -245,7 +174,15 @@ class SheetsService {
         throw new Error("Credential JSON is required");
       }
 
+      console.log(`[SheetsService] Initializing authentication for user: ${userId || 'unknown'}`);
+
       const serviceAccount = JSON.parse(credentialJson);
+
+      // Log credential validation without exposing sensitive data
+      console.log(`[SheetsService] Validating credential structure for user: ${userId || 'unknown'}`);
+      console.log(`[SheetsService] Has client_email: ${!!serviceAccount.client_email}`);
+      console.log(`[SheetsService] Has private_key: ${!!serviceAccount.private_key}`);
+      console.log(`[SheetsService] Credential type: ${serviceAccount.type || 'unknown'}`);
 
       this.serviceAccountEmail = serviceAccount.client_email;
 
@@ -262,40 +199,36 @@ class SheetsService {
       this.sheets = google.sheets({ version: "v4", auth: this.auth as any });
       this.drive = google.drive({ version: "v3", auth: this.auth as any });
 
+      console.log(`[SheetsService] Authorizing with Google API for user: ${userId || 'unknown'}`);
       await this.auth.authorize();
       this.initialized = true;
 
-      if (userId) {
-        console.log(
-          `✓ Google Sheets authentication initialized for user ${userId} with service account ${this.serviceAccountEmail}`
-        );
-      } else {
-        console.log(
-          `✓ Google Sheets authentication initialized with service account ${this.serviceAccountEmail}`
-        );
-      }
+      console.log(
+        `[SheetsService] ✓ Google Sheets authentication initialized for user ${userId || 'unknown'} with service account ${this.serviceAccountEmail}`
+      );
     } catch (error) {
-      console.error("Failed to initialize Google Sheets with stored credentials:", error);
+      console.error(`[SheetsService] Failed to initialize Google Sheets with stored credentials for user ${userId || 'unknown'}:`, error);
       throw error;
     }
   }
+
 
   /**
    * Verify that the service account credentials are usable
    * Returns metadata so the caller can show verification state to the user
    */
-  async verifyServiceAccount(credentialJson?: string): Promise<{
+  async verifyServiceAccount(credentialJson: string): Promise<{
     verified: boolean;
     email?: string | null;
     scopes?: string[];
     error?: string;
   }> {
     try {
-      if (credentialJson) {
-        await this.initializeWithCredentials(credentialJson);
-      } else {
-        await this.initialize();
+      if (!credentialJson) {
+        throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
       }
+
+      await this.initializeWithCredentials(credentialJson);
 
       if (!this.auth) {
         throw new Error("Auth not initialized");

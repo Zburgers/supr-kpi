@@ -137,11 +137,11 @@ class GoogleAnalyticsWorkflow {
     sheetName: string,
     credentialJson?: string
   ): Promise<AppendResult> {
-    if (credentialJson) {
-      await sheetsService.initializeWithCredentials(credentialJson);
-    } else {
-      await sheetsService.initialize();
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
     }
+
+    await sheetsService.initializeWithCredentials(credentialJson);
 
     const headerValues = await sheetsService.getValues(
       spreadsheetId,
@@ -259,13 +259,12 @@ class GoogleAnalyticsWorkflow {
     const apiResponse = await this.fetchGaReport(accessToken, propertyId);
     const metrics = this.parseMetrics(apiResponse);
 
-    let serviceAccount;
-    if (credentialJson) {
-      await sheetsService.initializeWithCredentials(credentialJson);
-      serviceAccount = await sheetsService.verifyServiceAccount();
-    } else {
-      serviceAccount = await sheetsService.verifyServiceAccount();
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
     }
+
+    await sheetsService.initializeWithCredentials(credentialJson);
+    const serviceAccount = await sheetsService.verifyServiceAccount(credentialJson);
 
     const targetSpreadsheetId = options?.spreadsheetId || GA_SPREADSHEET_ID;
     const targetSheetName = options?.sheetName || GA_SHEET_NAME;

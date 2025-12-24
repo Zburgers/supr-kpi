@@ -98,13 +98,18 @@ class SchemaManager {
   async validateSchema(
     spreadsheetId: string,
     sheetName: string,
-    service: ServiceSchemaType
+    service: ServiceSchemaType,
+    credentialJson?: string
   ): Promise<SchemaValidationResult> {
     const schema = SCHEMAS[service];
-    
+
     try {
-      await sheetsService.initialize();
-      
+      if (!credentialJson) {
+        throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+      }
+
+      await sheetsService.initializeWithCredentials(credentialJson);
+
       // Get the header row
       const headerValues = await sheetsService.getValues(
         spreadsheetId,
@@ -161,12 +166,17 @@ class SchemaManager {
   async createSchema(
     spreadsheetId: string,
     sheetName: string,
-    service: ServiceSchemaType
+    service: ServiceSchemaType,
+    credentialJson?: string
   ): Promise<boolean> {
     const schema = SCHEMAS[service];
-    
+
     try {
-      await sheetsService.initialize();
+      if (!credentialJson) {
+        throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+      }
+
+      await sheetsService.initializeWithCredentials(credentialJson);
       
       // Update the first row with headers
       const range = sheetsService.formatRange(sheetName, `A1:${this.columnLetter(schema.columns.length - 1)}1`);
@@ -207,11 +217,16 @@ class SchemaManager {
     spreadsheetId: string,
     sheetName: string,
     targetDate: string,
+    credentialJson?: string,
     dateColumnIndex: number = 1 // Assuming 'date' is column B (index 1)
   ): Promise<{ exists: boolean; rowNumber?: number }> {
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+    }
+
     try {
-      await sheetsService.initialize();
-      
+      await sheetsService.initializeWithCredentials(credentialJson);
+
       const dateColLetter = this.columnLetter(dateColumnIndex);
       const dateValues = await sheetsService.getValues(
         spreadsheetId,
@@ -241,10 +256,15 @@ class SchemaManager {
   async getNextId(
     spreadsheetId: string,
     sheetName: string,
+    credentialJson?: string,
     idColumnIndex: number = 0 // Assuming 'id' is column A (index 0)
   ): Promise<number> {
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+    }
+
     try {
-      await sheetsService.initialize();
+      await sheetsService.initializeWithCredentials(credentialJson);
       
       const idColLetter = this.columnLetter(idColumnIndex);
       const idValues = await sheetsService.getValues(
@@ -278,10 +298,15 @@ class SchemaManager {
   async getLastDate(
     spreadsheetId: string,
     sheetName: string,
+    credentialJson?: string,
     dateColumnIndex: number = 1
   ): Promise<string | null> {
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+    }
+
     try {
-      await sheetsService.initialize();
+      await sheetsService.initializeWithCredentials(credentialJson);
       
       const dateColLetter = this.columnLetter(dateColumnIndex);
       const dateValues = await sheetsService.getValues(
@@ -309,12 +334,17 @@ class SchemaManager {
   async prepareForDataInsertion(
     spreadsheetId: string,
     sheetName: string,
-    service: ServiceSchemaType
+    service: ServiceSchemaType,
+    credentialJson?: string
   ): Promise<SchemaCheckResult> {
     const targetDate = this.getYesterdayDate();
-    
+
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+    }
+
     try {
-      await sheetsService.initialize();
+      await sheetsService.initializeWithCredentials(credentialJson);
       
       // Step 1: Validate schema
       let validation = await this.validateSchema(spreadsheetId, sheetName, service);
@@ -409,15 +439,20 @@ class SchemaManager {
     spreadsheetId: string,
     sheetName: string,
     service: ServiceSchemaType,
-    data: Record<string, string | number>
+    data: Record<string, string | number>,
+    credentialJson?: string
   ): Promise<{ success: boolean; rowNumber?: number; id?: number; error?: string }> {
     const schema = SCHEMAS[service];
-    
+
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+    }
+
     try {
-      await sheetsService.initialize();
-      
+      await sheetsService.initializeWithCredentials(credentialJson);
+
       // Get next ID
-      const nextId = await this.getNextId(spreadsheetId, sheetName);
+      const nextId = await this.getNextId(spreadsheetId, sheetName, credentialJson);
       
       // Build row in schema order
       const row: (string | number)[] = schema.columns.map(col => {
@@ -451,12 +486,17 @@ class SchemaManager {
     sheetName: string,
     service: ServiceSchemaType,
     targetDate: string,
-    data: Record<string, string | number>
+    data: Record<string, string | number>,
+    credentialJson?: string
   ): Promise<{ success: boolean; rowNumber?: number; error?: string }> {
     const schema = SCHEMAS[service];
-    
+
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+    }
+
     try {
-      await sheetsService.initialize();
+      await sheetsService.initializeWithCredentials(credentialJson);
       
       // Find the row with the target date
       const dateCheck = await this.checkDateExists(spreadsheetId, sheetName, targetDate);

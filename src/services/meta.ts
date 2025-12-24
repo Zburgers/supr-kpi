@@ -563,11 +563,11 @@ class MetaInsightsWorkflow {
     console.log(`  Sheet Name: ${sheetName}`);
 
     try {
-      if (credentialJson) {
-        await sheetsService.initializeWithCredentials(credentialJson);
-      } else {
-        await sheetsService.initialize();
+      if (!credentialJson) {
+        throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
       }
+
+      await sheetsService.initializeWithCredentials(credentialJson);
       console.log("  ✓ Sheets service initialized");
 
       const row = this.toSheetRow(metrics);
@@ -607,11 +607,11 @@ class MetaInsightsWorkflow {
     console.log(`  Sheet Name: ${sheetName}`);
 
     try {
-      if (credentialJson) {
-        await sheetsService.initializeWithCredentials(credentialJson);
-      } else {
-        await sheetsService.initialize();
+      if (!credentialJson) {
+        throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
       }
+
+      await sheetsService.initializeWithCredentials(credentialJson);
       console.log("  ✓ Sheets service initialized");
 
       const headerValues = await sheetsService.getValues(
@@ -773,9 +773,9 @@ class MetaInsightsWorkflow {
       let serviceAccount;
       if (credentialJson) {
         await sheetsService.initializeWithCredentials(credentialJson);
-        serviceAccount = await sheetsService.verifyServiceAccount();
+        serviceAccount = await sheetsService.verifyServiceAccount(credentialJson);
       } else {
-        serviceAccount = await sheetsService.verifyServiceAccount();
+        throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
       }
 
       // STEP 3 & 4: Format and append to sheet

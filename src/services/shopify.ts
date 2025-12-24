@@ -207,14 +207,14 @@ class ShopifyWorkflow {
     metrics: ShopifyMetricsRow,
     spreadsheetId: string,
     sheetName: string,
-    credentialJson?: string
+    credentialJson: string
   ): Promise<AppendResult> {
     console.log("📝 Upserting Shopify row into Google Sheet...");
-    if (credentialJson) {
-      await sheetsService.initializeWithCredentials(credentialJson);
-    } else {
-      await sheetsService.initialize();
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
     }
+
+    await sheetsService.initializeWithCredentials(credentialJson);
 
     const headerValues = await sheetsService.getValues(
       spreadsheetId,
@@ -352,13 +352,12 @@ class ShopifyWorkflow {
     const apiResponse = await this.fetchShopifyQL(storeDomain, accessToken);
     const metrics = this.parseMetrics(apiResponse);
 
-    let serviceAccount;
-    if (credentialJson) {
-      await sheetsService.initializeWithCredentials(credentialJson);
-      serviceAccount = await sheetsService.verifyServiceAccount();
-    } else {
-      serviceAccount = await sheetsService.verifyServiceAccount();
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
     }
+
+    await sheetsService.initializeWithCredentials(credentialJson);
+    const serviceAccount = await sheetsService.verifyServiceAccount(credentialJson);
 
     const targetSpreadsheetId = options?.spreadsheetId || SHOPIFY_SPREADSHEET_ID;
     const targetSheetName = options?.sheetName || SHOPIFY_SHEET_NAME;
