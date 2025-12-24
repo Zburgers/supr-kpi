@@ -39,7 +39,11 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
   const { source, targetDate, jobId, userId: jobUserId } = job.data;
   const startTime = Date.now();
 
-  logger.info(`Processing ${source} sync job`, { jobId, targetDate, userId: jobUserId });
+  // Create a job-specific logger for better observability
+  const jobLogger = logger.child({ jobId, source, userId: jobUserId });
+  jobLogger.info(`Processing ${source} sync job`, { targetDate });
+
+  // Emit sync started event
   events.syncStarted(source, targetDate, jobId);
 
   try {
@@ -56,10 +60,11 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
     // Get the service configuration to find the credential ID
     // If userId is provided in job, filter by it (multi-tenant support)
     const userFilter = jobUserId ? 'AND sc.user_id = $2' : '';
-    const queryParams = jobUserId 
-      ? [source, jobUserId] 
+    const queryParams = jobUserId
+      ? [source, jobUserId]
       : [source];
-    
+
+    jobLogger.info('Fetching service configuration', { service: source });
     const serviceConfigResult = await executeQuery(
       `SELECT sc.credential_id, sc.user_id FROM service_configs sc
        WHERE sc.service = $1 AND sc.enabled = true ${userFilter}
@@ -72,6 +77,8 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
     if (serviceConfigResult.rows.length > 0 && serviceConfigResult.rows[0].credential_id) {
       // Get the credential from the database
       const credentialId = serviceConfigResult.rows[0].credential_id;
+      jobLogger.info('Fetching credential from database', { credentialId });
+
       const credentialResult = await executeQuery(
         `SELECT encrypted_data, user_id FROM credentials
          WHERE id = $1 AND deleted_at IS NULL`,
@@ -81,23 +88,53 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
       if (credentialResult.rows.length > 0) {
         const encryptedData = credentialResult.rows[0].encrypted_data;
         userId = credentialResult.rows[0].user_id;
+        jobLogger.info('Decrypting credential', { userId });
         credentialJson = decryptCredential(encryptedData, String(userId));
+      } else {
+        jobLogger.error('Credential not found in database', { credentialId });
+        throw new Error(`Credential with ID ${credentialId} not found in database`);
       }
+    } else {
+      jobLogger.error('No enabled service configuration found', { service: source, userId: jobUserId });
+      throw new Error(`No enabled service configuration found for service: ${source}. Please configure credentials in the dashboard.`);
     }
 
     // If no stored credentials found, throw an error instead of falling back to environment variables
     if (!credentialJson) {
+      jobLogger.error('No stored credentials found for service', { service: source });
       throw new Error(`No stored credentials found for service: ${source}. Please configure credentials in the dashboard.`);
     }
 
     // Parse the credential JSON to get the credential data
     const credentialData = JSON.parse(credentialJson);
 
+    // Log credential information (without sensitive data)
+    jobLogger.info('Credential validation passed', {
+      service: source,
+      hasAccessToken: !!credentialData.access_token,
+      hasAccountId: !!credentialData.account_id,
+      hasPrivateKey: !!credentialData.private_key,
+      hasClientEmail: !!credentialData.client_email
+    });
+
     switch (source) {
       case 'meta': {
+        jobLogger.info('Starting Meta sync process', { targetDate });
+
+        // Validate required Meta credentials
+        if (!credentialData.access_token) {
+          jobLogger.error('Meta access token is missing from credential');
+          throw new Error('Meta access token is required');
+        }
+        if (!credentialData.account_id) {
+          jobLogger.error('Meta account ID is missing from credential');
+          throw new Error('Meta account ID is required');
+        }
+
+        // Map credential fields to adapter expected format
         const options = {
-          // Use credentials from the JSON
-          ...credentialData,
+          accessToken: credentialData.access_token, // Map snake_case to camelCase
+          accountId: credentialData.account_id,     // Map snake_case to camelCase
           targetDate,
           spreadsheetId: job.data.spreadsheetId || config.sources.meta.spreadsheetId,
           sheetName: job.data.sheetName || config.sources.meta.sheetName,
@@ -120,13 +157,31 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
       }
 
       case 'ga4': {
-        const options = {
-          // Use credentials from the JSON
-          ...credentialData,
-          targetDate,
-          spreadsheetId: job.data.spreadsheetId || config.sources.ga4.spreadsheetId,
-          sheetName: job.data.sheetName || config.sources.ga4.sheetName,
-        };
+        jobLogger.info('Starting GA4 sync process', { targetDate });
+
+        // For GA4, we need to determine if it's service account or OAuth format
+        const isServiceAccount = credentialData.type === 'service_account';
+
+        let options;
+        if (isServiceAccount) {
+          // Service account format - map to adapter format if needed
+          options = {
+            accessToken: credentialData.access_token, // For service account auth
+            propertyId: credentialData.property_id,   // Property ID might be in credential
+            targetDate,
+            spreadsheetId: job.data.spreadsheetId || config.sources.ga4.spreadsheetId,
+            sheetName: job.data.sheetName || config.sources.ga4.sheetName,
+          };
+        } else {
+          // OAuth format - map snake_case to camelCase
+          options = {
+            accessToken: credentialData.refresh_token || credentialData.access_token, // Use appropriate token
+            propertyId: credentialData.property_id,
+            targetDate,
+            spreadsheetId: job.data.spreadsheetId || config.sources.ga4.spreadsheetId,
+            sheetName: job.data.sheetName || config.sources.ga4.sheetName,
+          };
+        }
 
         const adapterResult = await ga4Adapter.sync(options, credentialJson);
         result = {
@@ -145,9 +200,12 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
       }
 
       case 'shopify': {
+        jobLogger.info('Starting Shopify sync process', { targetDate });
+
+        // Map credential fields to adapter expected format
         const options = {
-          // Use credentials from the JSON
-          ...credentialData,
+          storeDomain: credentialData.shop_url,  // Map snake_case to camelCase
+          accessToken: credentialData.access_token, // Map snake_case to camelCase
           targetDate,
           spreadsheetId: job.data.spreadsheetId || config.sources.shopify.spreadsheetId,
           sheetName: job.data.sheetName || config.sources.shopify.sheetName,
@@ -170,24 +228,38 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
       }
 
       default:
+        jobLogger.error('Unknown source provided', { source });
         throw new Error(`Unknown source: ${source}`);
     }
 
     // Emit success event
     if (result.success) {
+      jobLogger.info('Sync completed successfully', {
+        durationMs: result.durationMs,
+        mode: result.mode,
+        rowNumber: result.rowNumber
+      });
       events.syncSuccess(source, targetDate, jobId, result.durationMs, 1);
-      
+
       if (result.mode === 'append' && result.rowNumber) {
         events.rowAppended(source, targetDate, result.rowNumber);
       } else if (result.mode === 'update' && result.rowNumber) {
         events.rowUpdated(source, targetDate, result.rowNumber);
       }
+    } else {
+      jobLogger.warn('Sync completed with errors', { error: result.error });
     }
 
     return result;
   } catch (error) {
     const durationMs = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
+
+    jobLogger.error('Sync job failed', {
+      error: errorMessage,
+      durationMs,
+      stack: error instanceof Error ? error.stack : undefined
+    });
 
     // Check for specific error types
     if (errorMessage.includes('token') || errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
@@ -202,7 +274,7 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
 
     // Send failure notification
     await notifier.sendSyncFailure(source, targetDate, errorMessage).catch((notifyError) => {
-      logger.error('Failed to send failure notification', {
+      jobLogger.error('Failed to send failure notification', {
         error: notifyError instanceof Error ? notifyError.message : String(notifyError),
       });
     });

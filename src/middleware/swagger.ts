@@ -12,5 +12,5 @@ export const swaggerDocs = (app: any) => {
     res.send(specs);
   });
 
-  console.log('✅ Swagger docs available at http://localhost:3000/api/docs');
+  console.log('✅ Swagger docs available at http://localhost:3001/api/docs');
 };

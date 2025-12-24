@@ -44,7 +44,7 @@ export interface BaseDailyMetric {
  */
 export interface MetaDailyMetric extends BaseDailyMetric {
   source: 'meta';
-  /** Ad spend amount (USD) */
+  /** Ad spend amount (INR) */
   spend: number;
   /** Number of unique users reached */
   reach: number;
@@ -60,7 +60,7 @@ export interface MetaDailyMetric extends BaseDailyMetric {
   initiate_checkout: number;
   /** Completed purchases */
   purchases: number;
-  /** Purchase revenue (USD) */
+  /** Purchase revenue (INR) */
   revenue: number;
 }
 
@@ -78,7 +78,7 @@ export interface Ga4DailyMetric extends BaseDailyMetric {
   add_to_cart: number;
   /** Purchase events */
   purchases: number;
-  /** Total revenue (USD) */
+  /** Total revenue (INR) */
   revenue: number;
   /** Bounce rate (0-100) */
   bounce_rate: number;
@@ -92,9 +92,9 @@ export interface ShopifyDailyMetric extends BaseDailyMetric {
   source: 'shopify';
   /** Total order count */
   total_orders: number;
-  /** Gross revenue (USD) */
+  /** Gross revenue (INR) */
   total_revenue: number;
-  /** Net revenue after discounts/refunds (USD) */
+  /** Net revenue after discounts/refunds (INR) */
   net_revenue: number;
   /** Total return count */
   total_returns: number;
