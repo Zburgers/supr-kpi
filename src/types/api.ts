@@ -226,3 +226,44 @@ export enum ErrorCode {
   DATABASE_ERROR = 'DATABASE_ERROR',
   SERVICE_ERROR = 'SERVICE_ERROR',
 }
+
+// ============================================================================
+// GA4 ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/ga4/sync
+ */
+export interface Ga4SyncRequest {
+  credentialId: string | number;
+  options?: {
+    spreadsheetId?: string;
+    sheetName?: string;
+  };
+}
+
+export interface Ga4SyncResponse {
+  success: boolean;
+  data?: {
+    metrics: {
+      id?: number;
+      date: string;
+      sessions: number;
+      users: number;
+      add_to_cart: number;
+      purchases: number;
+      revenue: number;
+      bounce_rate: number;
+    };
+    appendResult: {
+      success: boolean;
+      mode: 'append' | 'skip';
+      rowNumber?: number;
+      id?: number;
+      error?: string;
+    };
+    spreadsheetId: string;
+    sheetName: string;
+  };
+  error?: string;
+}

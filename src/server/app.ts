@@ -34,6 +34,7 @@ import credentialRoutes from '../routes/credentials.js';
 import serviceRoutes from '../routes/services.js';
 import sheetRoutes from '../routes/sheets.js';
 import sheetExternalRoutes from '../routes/sheets-external.js';
+import ga4Routes from '../routes/ga4.js';
 import userRoutes from '../routes/user.js';
 import scheduleRoutes from '../routes/schedules.js';
 import activityLogRoutes from '../routes/activity-log.js';
@@ -53,7 +54,7 @@ import { shopifyAdapter } from '../adapters/shopify.adapter.js';
 import { sheetsService } from '../services/sheets.js';
 import { metaInsightsWorkflow, META_SPREADSHEET_ID, META_SHEET_NAME } from '../services/meta.js';
 import { shopifyWorkflow, SHOPIFY_SPREADSHEET_ID, SHOPIFY_SHEET_NAME } from '../services/shopify.js';
-import { googleAnalyticsWorkflow, GA_SPREADSHEET_ID, GA_SHEET_NAME } from '../services/google.js';
+// Note: googleAnalyticsWorkflow has been deprecated and replaced with new GA4 service
 
 // Types
 import { ApiResponse, HealthCheckResponse, DataSource } from '../types/etl.js';
@@ -126,6 +127,7 @@ app.use('/api/credentials', authenticate, credentialRoutes);
 app.use('/api/services', authenticate, serviceRoutes);
 app.use('/api/sheet-mappings', authenticate, sheetRoutes);
 app.use('/api/sheets', authenticate, sheetExternalRoutes); // Enhanced sheets routes with credential support
+app.use('/api/ga4', authenticate, ga4Routes); // GA4 analytics routes
 app.use('/api/schedules', authenticate, scheduleRoutes);
 app.use('/api/activity-log', authenticate, activityLogRoutes);
 app.use('/api/user', userRoutes);
@@ -425,85 +427,16 @@ app.post('/api/v1/sync/meta/direct', authenticate, async (req: Request, res: Res
 });
 
 /**
- * Direct GA4 sync (bypasses queue)
+ * Direct GA4 sync (bypasses queue) - DEPRECATED
  * POST /api/v1/sync/ga4/direct
  */
 app.post('/api/v1/sync/ga4/direct', authenticate, async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
 
-  try {
-    const { accessToken, propertyId, spreadsheetId, sheetName, targetDate } = req.body || {};
-    const userId = req.user!.userId;
-
-    if (!accessToken || !propertyId) {
-      res.status(400).json({
-        success: false,
-        error: 'accessToken and propertyId are required',
-      });
-      return;
-    }
-
-    // Dynamically import database functions
-    const { executeQuery } = await import('../lib/database.js');
-    const { decryptCredential } = await import('../lib/encryption.js');
-
-    // Fetch the credential from the database
-    const serviceConfigResult = await executeQuery(
-      `SELECT credential_id FROM service_configs
-       WHERE service = 'ga4' AND user_id = $1 AND enabled = true
-       LIMIT 1`,
-      [userId],
-      userId
-    );
-
-    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
-      res.status(400).json({
-        success: false,
-        error: 'No enabled GA4 service configuration found. Please configure credentials in the dashboard.',
-      });
-      return;
-    }
-
-    const credentialId = serviceConfigResult.rows[0].credential_id;
-    const credentialResult = await executeQuery(
-      `SELECT encrypted_data FROM credentials
-       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-      [credentialId, userId],
-      userId
-    );
-
-    if (credentialResult.rows.length === 0) {
-      res.status(400).json({
-        success: false,
-        error: `Credential with ID ${credentialId} not found in database`,
-      });
-      return;
-    }
-
-    const encryptedData = credentialResult.rows[0].encrypted_data;
-    const credentialJson = decryptCredential(encryptedData, String(userId));
-
-    const result = await ga4Adapter.sync({
-      accessToken,
-      propertyId,
-      targetDate,
-      spreadsheetId,
-      sheetName,
-    }, credentialJson);
-
-    res.json({
-      success: result.success,
-      data: result,
-      message: result.success
-        ? `GA4 sync completed: ${result.mode} at row ${result.rowNumber}`
-        : `GA4 sync failed: ${result.error}`,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+  res.status(400).json({
+    success: false,
+    error: 'This endpoint is deprecated. Please use the new authenticated GA4 endpoints: POST /api/ga4/sync',
+  });
 });
 
 /**
@@ -945,83 +878,15 @@ app.post('/api/shopify/fetch', authenticate, async (req: Request, res: Response)
 });
 
 /**
- * Legacy Google Analytics fetch
+ * Legacy Google Analytics fetch - DEPRECATED
  */
 app.post('/api/google/fetch', authenticate, async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
 
-  try {
-    const { accessToken, propertyId, spreadsheetId, sheetName } = req.body || {};
-    const userId = req.user!.userId;
-
-    if (!accessToken || !propertyId) {
-      res.status(400).json({
-        success: false,
-        error: 'accessToken and propertyId are required',
-      });
-      return;
-    }
-
-    // Dynamically import database functions
-    const { executeQuery } = await import('../lib/database.js');
-    const { decryptCredential } = await import('../lib/encryption.js');
-
-    // Fetch the credential from the database
-    const serviceConfigResult = await executeQuery(
-      `SELECT credential_id FROM service_configs
-       WHERE service = 'ga4' AND user_id = $1 AND enabled = true
-       LIMIT 1`,
-      [userId],
-      userId
-    );
-
-    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
-      res.status(400).json({
-        success: false,
-        error: 'No enabled GA4 service configuration found. Please configure credentials in the dashboard.',
-      });
-      return;
-    }
-
-    const credentialId = serviceConfigResult.rows[0].credential_id;
-    const credentialResult = await executeQuery(
-      `SELECT encrypted_data FROM credentials
-       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-      [credentialId, userId],
-      userId
-    );
-
-    if (credentialResult.rows.length === 0) {
-      res.status(400).json({
-        success: false,
-        error: `Credential with ID ${credentialId} not found in database`,
-      });
-      return;
-    }
-
-    const encryptedData = credentialResult.rows[0].encrypted_data;
-    const credentialJson = decryptCredential(encryptedData, String(userId));
-
-    const result = await googleAnalyticsWorkflow.runWorkflow(accessToken, propertyId, {
-      spreadsheetId: spreadsheetId || undefined,
-      sheetName: sheetName || undefined,
-    }, credentialJson);
-
-    res.json({
-      success: true,
-      data: result,
-      message: result.appendResult.mode === 'skip'
-        ? `GA4 metrics for ${result.metrics.date} already exist`
-        : result.appendResult.success
-          ? `GA4 metrics for ${result.metrics.date} synced`
-          : `GA4 fetch completed but sheet write failed`,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
+  res.status(400).json({
+    success: false,
+    error: 'This endpoint is deprecated. Please use the new authenticated GA4 endpoints: POST /api/ga4/sync',
+  });
 });
 
 // ============================================================================
@@ -1174,6 +1039,10 @@ async function startServer(): Promise<void> {
     console.log('   Test Notifications:        POST /api/v1/notifications/test');
 
     console.log('');
+    console.log('📊 Google Analytics 4:');
+    console.log('   GA4 Sync:                  POST /api/ga4/sync');
+
+    console.log('');
     console.log('📊 Legacy Google Sheets:');
     console.log('   List Spreadsheets:         GET  /api/spreadsheets');
     console.log('   Get Sheet Names:           GET  /api/sheets/:spreadsheetId');
@@ -1184,7 +1053,7 @@ async function startServer(): Promise<void> {
     console.log('🔄 Legacy Sync Operations:');
     console.log('   Legacy Meta Fetch:         POST /api/meta/fetch');
     console.log('   Legacy Shopify Fetch:      POST /api/shopify/fetch');
-    console.log('   Legacy GA Fetch:           POST /api/google/fetch');
+    console.log('   Legacy GA Fetch:           POST /api/google/fetch (DEPRECATED)');
 
     console.log('');
     console.log('💡 Note: All authenticated endpoints require Clerk JWT token');
