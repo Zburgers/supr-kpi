@@ -313,13 +313,15 @@ export async function getSheetRawData(
 // ============================================================================
 
 export interface SyncResponse {
-  metrics: MetaRawDaily | GA4RawDaily | ShopifyRawDaily
-  appendResult: SyncResult
+  metrics?: MetaRawDaily | GA4RawDaily | ShopifyRawDaily
+  appendResult?: SyncResult
+  jobId?: string
 }
 
 /**
  * Sync using stored credentials (preferred method)
  * The backend will retrieve and decrypt credentials automatically
+ * This returns either a direct sync result or a queued job ID
  */
 export async function syncService(service: 'meta' | 'ga4' | 'shopify', options?: {
   targetDate?: string

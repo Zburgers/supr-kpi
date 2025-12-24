@@ -57,12 +57,24 @@ export function ManualPullDialog() {
       // Use modern syncService which uses stored credentials from backend
       const response = await api.syncService(platform, { targetDate })
 
+      // Check if the response contains job information (queued) vs direct sync result
+      let finalMessage = '';
+      if (response.success) {
+        if (response.data && 'jobId' in response.data) {
+          // This is a queued job, the actual sync will happen later
+          finalMessage = `${platformName} sync job enqueued (Job ID: ${response.data.jobId}). Check activity log for results.`;
+        } else {
+          // This is a direct sync result
+          finalMessage = `${platformName} data for ${targetDate} synced successfully!`;
+        }
+      } else {
+        finalMessage = response.error || `Failed to sync ${platformName} data`;
+      }
+
       setResults(prev => [...prev, {
         platform: platformName,
         success: response.success,
-        message: response.success
-          ? `${platformName} data for ${targetDate} synced successfully!`
-          : response.error || `Failed to sync ${platformName} data`,
+        message: finalMessage,
         data: response.success ? (response as { success: true; data: unknown }).data : undefined,
       }])
     } catch (error) {
