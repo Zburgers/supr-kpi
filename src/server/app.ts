@@ -55,6 +55,7 @@ import { sheetsService } from '../services/sheets.js';
 import { metaInsightsWorkflow, META_SPREADSHEET_ID, META_SHEET_NAME } from '../services/meta.js';
 import { shopifyWorkflow, SHOPIFY_SPREADSHEET_ID, SHOPIFY_SHEET_NAME } from '../services/shopify.js';
 // Note: googleAnalyticsWorkflow has been deprecated and replaced with new GA4 service
+// Legacy import removed for deprecated module
 
 // Types
 import { ApiResponse, HealthCheckResponse, DataSource } from '../types/etl.js';
