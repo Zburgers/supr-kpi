@@ -17,6 +17,8 @@
  * It should not be used in production.
  */
 
+import type { AppendResult, ServiceAccountStatus } from "./meta.js";
+
 export interface GoogleAnalyticsRow {
   id?: number;
   date: string;
@@ -28,9 +30,37 @@ export interface GoogleAnalyticsRow {
   bounce_rate: number;
 }
 
+export interface GoogleRunOptions {
+  spreadsheetId?: string;
+  sheetName?: string;
+}
+
+// Keep the original constants for backward compatibility
+export const GA_SPREADSHEET_ID = "1HlVbOXTfNJjHCt2fzHz8uCkZjUBHxFPRXB-2mcVNvu8";
+export const GA_SHEET_NAME = "Google";
+
+interface GaRunReportResponse {
+  rows?: Array<{
+    dimensionValues?: Array<{ value?: string }>;
+    metricValues?: Array<{ value?: string }>;
+  }>;
+}
+
 // Placeholder implementation that throws an error when used
 class GoogleAnalyticsWorkflow {
-  async runWorkflow() {
+  async runWorkflow(
+    _accessToken: string,
+    _propertyId: string,
+    _options?: GoogleRunOptions,
+    _credentialJson?: string
+  ): Promise<{
+    metrics: GoogleAnalyticsRow;
+    appendResult: AppendResult;
+    serviceAccount: ServiceAccountStatus;
+    rawApiSample?: GaRunReportResponse["rows"];
+    spreadsheetId: string;
+    sheetName: string;
+  }> {
     throw new Error(
       "This legacy Google Analytics service is deprecated. " +
       "Please use the new GA4 service at POST /api/ga4/sync instead."
