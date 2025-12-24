@@ -277,7 +277,7 @@ export function useDashboardData(dateRange: DateRange) {
       setData((prev) => ({ ...prev, isLoading: true }))
 
       try {
-        // For GA4, we need to get the credentialId from service configuration
+        // For GA4 and Shopify, we need to get the credentialId from service configuration
         let result;
         if (platform === 'ga4') {
           const ga4CredentialId = serviceConfig.ga4.credentialId;
@@ -287,6 +287,14 @@ export function useDashboardData(dateRange: DateRange) {
 
           // Use modern syncService which uses stored credentials from backend
           result = await api.syncService(platform, { credentialId: ga4CredentialId })
+        } else if (platform === 'shopify') {
+          const shopifyCredentialId = serviceConfig.shopify.credentialId;
+          if (!shopifyCredentialId) {
+            return { success: false, error: 'Shopify credential ID not found. Please reconfigure Shopify in Settings.' };
+          }
+
+          // Use modern syncService which uses stored credentials from backend
+          result = await api.syncService(platform, { credentialId: shopifyCredentialId })
         } else {
           // Use modern syncService which uses stored credentials from backend
           result = await api.syncService(platform)

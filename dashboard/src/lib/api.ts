@@ -326,7 +326,7 @@ export interface SyncResponse {
 export async function syncService(service: 'meta' | 'ga4' | 'shopify', options?: {
   targetDate?: string
   force?: boolean
-  credentialId?: string // For GA4 service when using new endpoint
+  credentialId?: string // For GA4/Shopify services when using new endpoint
   spreadsheetId?: string
   sheetName?: string
 }): Promise<ApiResponse<SyncResponse>> {
@@ -353,6 +353,32 @@ export async function syncService(service: 'meta' | 'ga4' | 'shopify', options?:
     return fetchApi<SyncResponse>('/ga4/sync', {
       method: 'POST',
       body: JSON.stringify(ga4Options),
+    })
+  }
+
+  // For Shopify, use the new endpoint that handles stored credentials
+  if (service === 'shopify' && options?.credentialId) {
+    // Call the new Shopify endpoint which requires credentialId
+    const shopifyOptions: {
+      credentialId: string | number
+      options?: {
+        spreadsheetId?: string
+        sheetName?: string
+      }
+    } = {
+      credentialId: options.credentialId,
+    };
+
+    // Add optional parameters if they exist
+    if (options.spreadsheetId || options.sheetName) {
+      shopifyOptions.options = {};
+      if (options.spreadsheetId) shopifyOptions.options.spreadsheetId = options.spreadsheetId;
+      if (options.sheetName) shopifyOptions.options.sheetName = options.sheetName;
+    }
+
+    return fetchApi<SyncResponse>('/shopify/sync', {
+      method: 'POST',
+      body: JSON.stringify(shopifyOptions),
     })
   }
 

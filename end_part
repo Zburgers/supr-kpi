@@ -1,0 +1,18 @@
+    return {
+      metrics,
+      appendResult,
+      spreadsheetId: targetSpreadsheetId,
+      sheetName: targetSheetName,
+    };
+  }
+}
+
+export const shopifyService = new ShopifyService();
+      appendResult,
+      spreadsheetId: targetSpreadsheetId,
+      sheetName: targetSheetName,
+    };
+  }
+}
+
+export const shopifyService = new ShopifyService();

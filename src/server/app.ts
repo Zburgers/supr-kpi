@@ -35,6 +35,7 @@ import serviceRoutes from '../routes/services.js';
 import sheetRoutes from '../routes/sheets.js';
 import sheetExternalRoutes from '../routes/sheets-external.js';
 import ga4Routes from '../routes/ga4.js';
+import shopifyRoutes from '../routes/shopify.js';
 import userRoutes from '../routes/user.js';
 import scheduleRoutes from '../routes/schedules.js';
 import activityLogRoutes from '../routes/activity-log.js';
@@ -129,6 +130,7 @@ app.use('/api/services', authenticate, serviceRoutes);
 app.use('/api/sheet-mappings', authenticate, sheetRoutes);
 app.use('/api/sheets', authenticate, sheetExternalRoutes); // Enhanced sheets routes with credential support
 app.use('/api/ga4', authenticate, ga4Routes); // GA4 analytics routes
+app.use('/api/shopify', authenticate, shopifyRoutes); // Shopify analytics routes
 app.use('/api/schedules', authenticate, scheduleRoutes);
 app.use('/api/activity-log', authenticate, activityLogRoutes);
 app.use('/api/user', userRoutes);
@@ -433,10 +435,24 @@ app.post('/api/v1/sync/meta/direct', authenticate, async (req: Request, res: Res
  */
 app.post('/api/v1/sync/ga4/direct', authenticate, async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
+  const sunset = '2025-02-01T00:00:00Z';
+  const migrationUrl = 'https://pegasus.nakshatraneuratech.dev/docs/ga4-migration';
 
-  res.status(400).json({
+  logger.warn('Deprecated endpoint called: /api/v1/sync/ga4/direct', {
+    userId: req.user?.userId,
+    path: req.path,
+  });
+
+  res.setHeader('Deprecation', 'true');
+  res.setHeader('Sunset', sunset);
+  res.setHeader('Link', `<${migrationUrl}>; rel="deprecation"`);
+
+  res.status(410).json({
     success: false,
-    error: 'This endpoint is deprecated. Please use the new authenticated GA4 endpoints: POST /api/ga4/sync',
+    error: 'This endpoint is deprecated and will be removed after the sunset date.',
+    message: 'Use POST /api/ga4/sync with stored credentials instead of /api/v1/sync/ga4/direct.',
+    sunset,
+    docs: migrationUrl,
   });
 });
 

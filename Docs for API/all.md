@@ -38,6 +38,15 @@ POST /api/v1/sync/meta/direct
 POST /api/v1/sync/ga4/direct
 
 --
+This section represents the ga4 service API.
+
+ga4.service.ts:
+
+POST /api/ga4/sync
+
+
+--
+This section represents shared types used across the application.
 
 etl.ts - has all interfaces 
 

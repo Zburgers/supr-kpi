@@ -200,6 +200,7 @@ export interface ErrorResponse {
 export enum ErrorCode {
   // 400 Bad Request
   INVALID_JSON = 'INVALID_JSON',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
   MISSING_FIELDS = 'MISSING_FIELDS',
   INVALID_SERVICE = 'INVALID_SERVICE',
   INVALID_CREDENTIAL_FORMAT = 'INVALID_CREDENTIAL_FORMAT',
@@ -256,12 +257,51 @@ export interface Ga4SyncResponse {
       bounce_rate: number;
     };
     appendResult: {
-      success: boolean;
       mode: 'append' | 'skip';
-      rowNumber?: number;
+    } & (
+      | { success: true; rowNumber: number; id: number }
+      | { success: false; error: string }
+    );
+    spreadsheetId: string;
+    sheetName: string;
+  };
+  error?: string;
+}
+
+// ============================================================================
+// SHOPIFY ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/shopify/sync
+ */
+export interface ShopifySyncRequest {
+  credentialId: string | number;
+  options?: {
+    spreadsheetId?: string;
+    sheetName?: string;
+  };
+}
+
+export interface ShopifySyncResponse {
+  success: boolean;
+  data?: {
+    metrics: {
       id?: number;
-      error?: string;
+      date: string;
+      total_orders: number;
+      total_revenue: number;
+      net_revenue: number;
+      total_returns: number;
+      new_customers: number;
+      repeat_customers: number;
     };
+    appendResult: {
+      mode: 'append' | 'skip';
+    } & (
+      | { success: true; rowNumber: number; id: number }
+      | { success: false; error: string }
+    );
     spreadsheetId: string;
     sheetName: string;
   };

@@ -59,9 +59,29 @@ class Ga4Service {
   }
 
   /**
+   * Generate a conflict-free numeric identifier using time + randomness.
+   * Keeps within Number.MAX_SAFE_INTEGER to avoid precision loss.
+   */
+  private generateUniqueId(): number {
+    const timestamp = Date.now();
+    const randomPart = Math.floor(Math.random() * 1000); // 0-999
+    const candidate = Number(`${timestamp}${randomPart.toString().padStart(3, '0')}`);
+
+    if (Number.isSafeInteger(candidate)) {
+      return candidate;
+    }
+
+    const fallback = Math.floor(Math.random() * 1_000_000_000);
+    return fallback;
+  }
+
+  /**
    * Fetch GA4 report data using service account authentication
    */
   async fetchGaReport(credentials: Ga4Credentials): Promise<GaRunReportResponse> {
+    const controller = new AbortController();
+    const timeoutMs = 10000;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       // Create JWT auth client for service account
       const auth = new JWT({
@@ -91,16 +111,24 @@ class Ga4Service {
         keepEmptyRows: true,
       };
 
+      timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
       logger.info('Fetching GA4 report', {
         propertyId: credentials.property_id,
         clientEmail: credentials.client_email
       });
 
       // Make the API call
-      const response = await analyticsData.properties.runReport({
-        property: `properties/${credentials.property_id}`,
-        requestBody,
-      });
+      const response = await (analyticsData.properties.runReport as any)(
+        {
+          property: `properties/${credentials.property_id}`,
+          requestBody,
+          signal: controller.signal,
+        },
+        { signal: controller.signal }
+      );
+
+      if (timeoutId) clearTimeout(timeoutId);
 
       logger.info('GA4 report fetched successfully', {
         propertyId: credentials.property_id,
@@ -114,7 +142,12 @@ class Ga4Service {
         clientEmail: credentials.client_email,
         error: error instanceof Error ? error.message : String(error)
       });
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`GA4 report request timed out after ${timeoutMs}ms`);
+      }
       throw error;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -233,26 +266,10 @@ class Ga4Service {
       };
     }
 
-    logger.debug(`GA4 ID column raw values (first 10):`, idValues.slice(0, 10));
+    const newId = this.generateUniqueId();
 
-    // Parse all IDs from column, filtering out non-numeric and empty values
-    const parsedIds = idValues
-      .map((r) => {
-        const val = r?.[0];
-        // Handle empty strings, null, undefined
-        if (val === "" || val === null || val === undefined) return NaN;
-        const num = Number(val);
-        return num;
-      })
-      .filter((n) => Number.isFinite(n) && n >= 0) as number[];
-
-    logger.debug(`GA4 Parsed IDs (showing ${parsedIds.length} valid IDs):`, parsedIds.slice(0, 10));
-    logger.debug(`GA4 Highest existing ID: ${parsedIds.length > 0 ? Math.max(...parsedIds) : 'none'}`);
-
-    const nextId = parsedIds.length > 0 ? Math.max(...parsedIds) + 1 : 1;
-
-    logger.info(`GA4 Calculated nextId: ${nextId}`);
-    const row = this.toSheetRow({ ...metrics, id: nextId });
+    logger.info(`GA4 Generated unique id for append`, { id: newId });
+    const row = this.toSheetRow({ ...metrics, id: newId });
 
     const appendSuccess = await sheetsService.appendRow(
       spreadsheetId,
@@ -265,13 +282,13 @@ class Ga4Service {
       logger.info('GA4 data appended successfully', {
         date: metrics.date,
         rowNumber: appendedRowNumber,
-        id: nextId
+        id: newId
       });
       return {
         success: true,
         mode: "append",
         rowNumber: appendedRowNumber,
-        id: nextId,
+        id: newId,
       };
     }
 

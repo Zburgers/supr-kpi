@@ -1,7 +1,7 @@
 /**
- * GA4 Analytics Routes
+ * Shopify Analytics Routes
  *
- * Handles GA4 data fetching and appending to Google Sheets
+ * Handles Shopify data fetching and appending to Google Sheets
  * These endpoints use stored credentials for authentication
  *
  * Security:
@@ -12,13 +12,13 @@
 
 import { Router, Request, Response } from 'express';
 import { authenticate, requireAuth } from '../middleware/auth.js';
-import { ga4Service } from '../services/ga4.service.js';
+import { shopifyService } from '../services/shopify.service.js';
 import { logger } from '../lib/logger.js';
-import { 
-  ErrorResponse, 
+import {
+  ErrorResponse,
   ErrorCode,
-  Ga4SyncResponse,
-  Ga4SyncRequest 
+  ShopifySyncResponse,
+  ShopifySyncRequest
 } from '../types/api.js';
 import type { AppendResult } from '../services/meta.js';
 
@@ -47,8 +47,8 @@ function normalizeAppendResult(appendResult: AppendResult): {
 const router = Router();
 
 // ============================================================================
-// POST /api/ga4/sync
-// Fetch GA4 data and append to Google Sheet
+// POST /api/shopify/sync
+// Fetch Shopify data and append to Google Sheet
 // Body: { credentialId: number, options?: { spreadsheetId?: string, sheetName?: string } }
 // ============================================================================
 
@@ -56,7 +56,7 @@ router.post('/sync', authenticate, async (req: Request, res: Response): Promise<
   if (!requireAuth(req, res)) return;
 
   try {
-    const { credentialId, options }: Ga4SyncRequest = req.body;
+    const { credentialId, options }: ShopifySyncRequest = req.body;
 
     // Validate required fields
     if (!credentialId) {
@@ -77,16 +77,16 @@ router.post('/sync', authenticate, async (req: Request, res: Response): Promise<
       return;
     }
 
-    logger.info('GA4 sync requested', {
+    logger.info('Shopify sync requested', {
       userId: req.user!.userId,
       credentialId: credentialIdNum,
       options
     });
 
-    // Run GA4 workflow
-    const result = await ga4Service.runWorkflow(credentialIdNum, req.user!.userId, options);
+    // Run Shopify workflow
+    const result = await shopifyService.runWorkflow(credentialIdNum, req.user!.userId, options);
 
-    const response: Ga4SyncResponse = {
+    const response: ShopifySyncResponse = {
       success: true,
       data: {
         metrics: result.metrics,
@@ -98,7 +98,7 @@ router.post('/sync', authenticate, async (req: Request, res: Response): Promise<
 
     res.json(response);
   } catch (error) {
-    logger.error('GA4 sync failed', {
+    logger.error('Shopify sync failed', {
       userId: req.user?.userId,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
@@ -106,15 +106,15 @@ router.post('/sync', authenticate, async (req: Request, res: Response): Promise<
 
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred during GA4 sync',
+      error: error instanceof Error ? error.message : 'Unknown error occurred during Shopify sync',
       code: ErrorCode.SERVICE_ERROR,
     } as ErrorResponse);
   }
 });
 
 // ============================================================================
-// POST /api/ga4/sync/yesterday
-// Fetch yesterday's GA4 data and append to Google Sheet
+// POST /api/shopify/sync/yesterday
+// Fetch yesterday's Shopify data and append to Google Sheet
 // Body: { credentialId: number, options?: { spreadsheetId?: string, sheetName?: string } }
 // ============================================================================
 
@@ -122,7 +122,7 @@ router.post('/sync/yesterday', authenticate, async (req: Request, res: Response)
   if (!requireAuth(req, res)) return;
 
   try {
-    const { credentialId, options }: Ga4SyncRequest = req.body;
+    const { credentialId, options }: ShopifySyncRequest = req.body;
 
     // Validate required fields
     if (!credentialId) {
@@ -143,16 +143,16 @@ router.post('/sync/yesterday', authenticate, async (req: Request, res: Response)
       return;
     }
 
-    logger.info('GA4 sync yesterday requested', {
+    logger.info('Shopify sync yesterday requested', {
       userId: req.user!.userId,
       credentialId: credentialIdNum,
       options
     });
 
-    // Run GA4 workflow
-    const result = await ga4Service.runWorkflow(credentialIdNum, req.user!.userId, options);
+    // Run Shopify workflow
+    const result = await shopifyService.runWorkflow(credentialIdNum, req.user!.userId, options);
 
-    const response: Ga4SyncResponse = {
+    const response: ShopifySyncResponse = {
       success: true,
       data: {
         metrics: result.metrics,
@@ -164,7 +164,7 @@ router.post('/sync/yesterday', authenticate, async (req: Request, res: Response)
 
     res.json(response);
   } catch (error) {
-    logger.error('GA4 sync yesterday failed', {
+    logger.error('Shopify sync yesterday failed', {
       userId: req.user?.userId,
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
@@ -172,7 +172,7 @@ router.post('/sync/yesterday', authenticate, async (req: Request, res: Response)
 
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred during GA4 sync',
+      error: error instanceof Error ? error.message : 'Unknown error occurred during Shopify sync',
       code: ErrorCode.SERVICE_ERROR,
     } as ErrorResponse);
   }

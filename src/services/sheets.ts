@@ -258,7 +258,9 @@ class SheetsService {
    * @returns {Promise<SheetMetadata[]>} Array of available sheets
    */
   async listSpreadsheets(): Promise<SheetMetadata[]> {
-    await this.initialize();
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
 
     if (!this.drive) throw new Error("Drive not initialized");
 
@@ -290,7 +292,9 @@ class SheetsService {
    * @returns {Promise<SheetMetadata[]>} Array of sheet metadata
    */
   async getSheetNames(spreadsheetId: string): Promise<SheetMetadata[]> {
-    await this.initialize();
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
 
     if (!this.sheets) throw new Error("Sheets not initialized");
 
@@ -323,7 +327,9 @@ class SheetsService {
     spreadsheetId: string,
     sheetName: string
   ): Promise<SheetRow[]> {
-    await this.initialize();
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
 
     if (!this.sheets) throw new Error("Sheets not initialized");
 
@@ -391,7 +397,9 @@ class SheetsService {
     spreadsheetId: string,
     sheetName: string
   ): Promise<(string | number | null)[][]> {
-    await this.initialize();
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
 
     if (!this.sheets) throw new Error("Sheets not initialized");
 
@@ -445,7 +453,9 @@ class SheetsService {
     sheetName: string,
     rangeA1: string
   ): Promise<(string | number | null)[][]> {
-    await this.initialize();
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
 
     if (!this.sheets) throw new Error("Sheets not initialized");
 
@@ -488,7 +498,9 @@ class SheetsService {
     sheetName: string,
     values: (string | number | null)[][]
   ): Promise<boolean> {
-    await this.initialize();
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
 
     if (!this.sheets) throw new Error("Sheets not initialized");
 
@@ -537,7 +549,9 @@ class SheetsService {
     sheetName: string,
     row: (string | number | null)[]
   ): Promise<boolean> {
-    await this.initialize();
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
 
     if (!this.sheets) throw new Error("Sheets not initialized");
 
@@ -588,7 +602,9 @@ class SheetsService {
     values: (string | number | null)[][],
     sheetNameForLog?: string
   ): Promise<boolean> {
-    await this.initialize();
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
 
     if (!this.sheets) throw new Error("Sheets not initialized");
 
