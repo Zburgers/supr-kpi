@@ -17,6 +17,8 @@ import { config } from '../config/index.js';
 export interface MetaSyncOptions extends SyncOptions {
   /** Meta Graph API access token */
   accessToken: string;
+  /** Meta Ad Account ID */
+  accountId: string;
 }
 
 /**
@@ -127,13 +129,13 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
   /**
    * Fetch data from Meta Graph API
    */
-  private async fetchFromApi(accessToken: string, targetDate: IsoDate): Promise<MetaApiResponse> {
+  private async fetchFromApi(accessToken: string, accountId: string, targetDate: IsoDate): Promise<MetaApiResponse> {
     const fields = 'date_start,date_stop,spend,reach,impressions,clicks,actions,action_values';
-    const url = `https://graph.facebook.com/${this.apiVersion}/${this.adAccountId}/insights?` +
+    const url = `https://graph.facebook.com/${this.apiVersion}/${accountId}/insights?` +
       `time_increment=1&date_preset=yesterday&action_breakdowns=action_type&fields=${fields}` +
       `&access_token=${encodeURIComponent(accessToken)}`;
 
-    logger.debug('Fetching Meta insights', { adAccountId: this.adAccountId, targetDate });
+    logger.debug('Fetching Meta insights', { accountId, targetDate });
 
     const response = await fetch(url);
     const text = await response.text();
@@ -223,13 +225,13 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
     metrics: MetaDailyMetric,
     spreadsheetId: string,
     sheetName: string,
-    credentialJson?: string
+    credentialJson: string
   ): Promise<SyncResult<MetaDailyMetric>> {
-    if (credentialJson) {
-      await sheetsService.initializeWithCredentials(credentialJson);
-    } else {
-      await sheetsService.initialize();
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
     }
+
+    await sheetsService.initializeWithCredentials(credentialJson);
 
     // Get header row to find column indices
     const headerValues = await sheetsService.getValues(spreadsheetId, sheetName, 'A1:Z1');
@@ -343,9 +345,14 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
    * Execute sync operation
    */
   async sync(options: MetaSyncOptions, credentialJson?: string): Promise<SyncResult<MetaDailyMetric>> {
-    const { accessToken, targetDate, spreadsheetId, sheetName } = options;
+    const { accessToken, accountId, targetDate, spreadsheetId, sheetName } = options;
 
     if (!accessToken) {
+      logger.error('Meta sync failed - no access token provided', {
+        targetDate: targetDate || 'yesterday',
+        hasSpreadsheetId: !!spreadsheetId,
+        hasSheetName: !!sheetName
+      });
       return { success: false, error: 'Meta access token is required' };
     }
 
@@ -353,29 +360,53 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
     const finalSpreadsheetId = spreadsheetId || sourceConfig.spreadsheetId;
     const finalSheetName = sheetName || sourceConfig.sheetName;
 
-    try {
-      logger.info('Starting Meta sync', { targetDate: targetDate || 'yesterday' });
+    logger.info('Starting Meta sync', {
+      targetDate: targetDate || 'yesterday',
+      spreadsheetId: finalSpreadsheetId,
+      sheetName: finalSheetName,
+      hasCredentialJson: !!credentialJson
+    });
 
-      const apiResponse = await this.fetchFromApi(accessToken, targetDate || getYesterdayDate());
+    try {
+      logger.debug('Fetching data from Meta API', { targetDate: targetDate || getYesterdayDate(), accountId });
+      const apiResponse = await this.fetchFromApi(accessToken, accountId, targetDate || getYesterdayDate());
+
+      logger.debug('Parsing Meta API response', { dataPoints: apiResponse.data?.length || 0 });
       const metrics = this.parseMetrics(apiResponse);
 
       logger.info('Meta metrics extracted', {
         date: metrics.date,
         spend: metrics.spend,
         revenue: metrics.revenue,
+        reach: metrics.reach,
+        impressions: metrics.impressions
       });
 
+      logger.debug('Upserting to Google Sheet', {
+        spreadsheetId: finalSpreadsheetId,
+        sheetName: finalSheetName
+      });
+      if (!credentialJson) {
+        throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+      }
       const result = await this.upsertToSheet(metrics, finalSpreadsheetId, finalSheetName, credentialJson);
 
       logger.info('Meta sync completed', {
+        success: result.success,
         mode: result.mode,
         rowNumber: result.rowNumber,
+        id: result.id,
+        error: result.error
       });
 
       return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error('Meta sync failed', { error: errorMessage });
+      logger.error('Meta sync failed', {
+        error: errorMessage,
+        targetDate: targetDate || 'yesterday',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return { success: false, error: errorMessage };
     }
   }

@@ -48,7 +48,7 @@ export interface BaseAdapter<T extends DailyMetric = DailyMetric, O extends Sync
    * Execute a sync operation
    * Extracts data from source and upserts to sheet
    */
-  sync(options: O): Promise<SyncResult<T>>;
+  sync(options: O, credentialJson?: string): Promise<SyncResult<T>>;
 
   /**
    * Validate adapter configuration

@@ -186,13 +186,13 @@ class Ga4Adapter implements BaseAdapter<Ga4DailyMetric, Ga4SyncOptions> {
     metrics: Ga4DailyMetric,
     spreadsheetId: string,
     sheetName: string,
-    credentialJson?: string
+    credentialJson: string
   ): Promise<SyncResult<Ga4DailyMetric>> {
-    if (credentialJson) {
-      await sheetsService.initializeWithCredentials(credentialJson);
-    } else {
-      await sheetsService.initialize();
+    if (!credentialJson) {
+      throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
     }
+
+    await sheetsService.initializeWithCredentials(credentialJson);
 
     // Get header row
     const headerValues = await sheetsService.getValues(spreadsheetId, sheetName, 'A1:Z1');
@@ -308,6 +308,9 @@ class Ga4Adapter implements BaseAdapter<Ga4DailyMetric, Ga4SyncOptions> {
         revenue: metrics.revenue,
       });
 
+      if (!credentialJson) {
+        throw new Error("Google Sheets credentials are required. Please provide credentials via the credential management system.");
+      }
       const result = await this.upsertToSheet(metrics, finalSpreadsheetId, finalSheetName, credentialJson);
 
       logger.info('GA4 sync completed', {
