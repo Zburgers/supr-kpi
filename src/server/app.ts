@@ -36,6 +36,7 @@ import sheetRoutes from '../routes/sheets.js';
 import sheetExternalRoutes from '../routes/sheets-external.js';
 import ga4Routes from '../routes/ga4.js';
 import shopifyRoutes from '../routes/shopify.js';
+import metaRoutes from '../routes/meta.js';
 import userRoutes from '../routes/user.js';
 import scheduleRoutes from '../routes/schedules.js';
 import activityLogRoutes from '../routes/activity-log.js';
@@ -131,6 +132,7 @@ app.use('/api/sheet-mappings', authenticate, sheetRoutes);
 app.use('/api/sheets', authenticate, sheetExternalRoutes); // Enhanced sheets routes with credential support
 app.use('/api/ga4', authenticate, ga4Routes); // GA4 analytics routes
 app.use('/api/shopify', authenticate, shopifyRoutes); // Shopify analytics routes
+app.use('/api/meta', authenticate, metaRoutes); // Meta analytics routes
 app.use('/api/schedules', authenticate, scheduleRoutes);
 app.use('/api/activity-log', authenticate, activityLogRoutes);
 app.use('/api/user', userRoutes);

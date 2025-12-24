@@ -12,14 +12,15 @@
  * @module services/shopify
  */
 
+import { v4 as uuidv4 } from 'uuid';
 import { sheetsService } from './sheets.js';
 import { executeQuery } from '../lib/database.js';
 import { decryptCredential } from '../lib/encryption.js';
 import { logger } from '../lib/logger.js';
-import type { AppendResult } from './meta.js';
+import type { AppendResult, ServiceAccountStatus } from '../types/services.js';
 
 export interface ShopifyMetricsRow {
-  id?: number; // Using numeric ID instead of auto-incrementing number
+  id?: string; // Changed to string for UUID
   date: string;
   total_orders: number;
   total_revenue: number;
@@ -81,20 +82,10 @@ class ShopifyService {
   }
 
   /**
-   * Generate a conflict-free numeric identifier using time + randomness.
-   * Keeps within Number.MAX_SAFE_INTEGER to avoid precision loss.
+   * Generate a UUID for the row identifier.
    */
-  private generateUniqueId(): number {
-    const timestamp = Date.now();
-    const randomPart = Math.floor(Math.random() * 1000); // 0-999
-    const candidate = Number(`${timestamp}${randomPart.toString().padStart(3, '0')}`);
-
-    if (Number.isSafeInteger(candidate)) {
-      return candidate;
-    }
-
-    const fallback = Math.floor(Math.random() * 1_000_000_000);
-    return fallback;
+  private generateUniqueId(): string {
+    return uuidv4();
   }
 
   private async fetchShopifyQL(
@@ -278,30 +269,40 @@ class ShopifyService {
       }
     }
 
-    // Generate a new numeric ID for the record
-    const recordId = this.generateUniqueId();
-    const row = this.toSheetRow({ ...metrics, id: recordId });
+    // Get ID values for existing ID
+    const idValues = await sheetsService.getValues(
+      spreadsheetId,
+      sheetName,
+      `${idColLetter}2:${idColLetter}`
+    );
 
+    let existingId: string | null = null;
+    if (existingRowNumber !== null) {
+      const existingIdCell = idValues[existingRowNumber - 2]?.[0];
+      if (existingIdCell && typeof existingIdCell === 'string') {
+        existingId = existingIdCell;
+      }
+    }
+
+    // If date already exists, skip the operation entirely (don't update, just skip)
     if (existingRowNumber) {
-      // Update existing row
-      const lastColLetter = String.fromCharCode(65 + row.length - 1);
-      const range = sheetsService.formatRange(
-        sheetName,
-        `A${existingRowNumber}:${lastColLetter}${existingRowNumber}`
-      );
-      await sheetsService.updateRange(spreadsheetId, range, [row], sheetName);
-      logger.info('Updated Shopify row', {
-        range,
-        id: recordId,
+      logger.info('Shopify data already exists for date, skipping append', {
         date: metrics.date,
+        existingRowNumber,
+        existingId
       });
       return {
         success: true,
-        mode: 'update',
+        mode: 'skip',
         rowNumber: existingRowNumber,
-        id: recordId,
+        id: existingId || undefined,
       };
     }
+
+    // Date doesn't exist, so append a new row with a UUID
+    const newId = this.generateUniqueId();
+    logger.info(`Shopify Generated unique id for append`, { id: newId });
+    const row = this.toSheetRow({ ...metrics, id: newId });
 
     // Append new row
     const appendSuccess = await sheetsService.appendRow(spreadsheetId, sheetName, row);
@@ -310,14 +311,14 @@ class ShopifyService {
       const appendedRowNumber = dateValues.length + 2;
       logger.info('Appended Shopify row', {
         rowNumber: appendedRowNumber,
-        id: recordId,
+        id: newId,
         date: metrics.date,
       });
       return {
         success: true,
         mode: 'append',
         rowNumber: appendedRowNumber,
-        id: recordId,
+        id: newId,
       };
     }
 

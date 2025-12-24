@@ -1,6 +1,6 @@
 // Meta Raw Daily Data
 export interface MetaRawDaily {
-  id?: number
+  id?: string  // UUID string
   date: string
   spend: number
   reach: number
@@ -15,7 +15,7 @@ export interface MetaRawDaily {
 
 // GA4 Raw Daily Data
 export interface GA4RawDaily {
-  id?: number
+  id?: string  // UUID string
   date: string
   sessions: number
   users: number
@@ -27,7 +27,7 @@ export interface GA4RawDaily {
 
 // Shopify Raw Daily Data
 export interface ShopifyRawDaily {
-  id?: number
+  id?: string  // UUID string
   date: string
   total_orders: number
   total_revenue: number
@@ -85,7 +85,7 @@ export interface SyncResult {
   success: boolean
   mode: 'append' | 'update' | 'skip'
   rowNumber?: number
-  id?: number
+  id?: string  // UUID string
   error?: string
 }
 

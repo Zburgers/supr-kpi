@@ -89,7 +89,7 @@ export function useDashboardData(dateRange: DateRange) {
     const idx = (key: string) => headers.indexOf(key)
 
     return rows.slice(1).map((row) => ({
-      id: idx('id') >= 0 ? toNumber(row[idx('id')]) : undefined,
+      id: idx('id') >= 0 ? String(row[idx('id')] ?? '') : undefined,
       date: String(row[idx('date')] ?? ''),
       spend: toNumber(row[idx('spend')]),
       reach: toNumber(row[idx('reach')]),
@@ -109,7 +109,7 @@ export function useDashboardData(dateRange: DateRange) {
     const idx = (key: string) => headers.indexOf(key)
 
     return rows.slice(1).map((row) => ({
-      id: idx('id') >= 0 ? toNumber(row[idx('id')]) : undefined,
+      id: idx('id') >= 0 ? String(row[idx('id')] ?? '') : undefined,
       date: String(row[idx('date')] ?? ''),
       sessions: toNumber(row[idx('sessions')]),
       users: toNumber(row[idx('users')]),
@@ -126,7 +126,7 @@ export function useDashboardData(dateRange: DateRange) {
     const idx = (key: string) => headers.indexOf(key)
 
     return rows.slice(1).map((row) => ({
-      id: idx('id') >= 0 ? toNumber(row[idx('id')]) : undefined,
+      id: idx('id') >= 0 ? String(row[idx('id')] ?? '') : undefined,
       date: String(row[idx('date')] ?? ''),
       total_orders: toNumber(row[idx('total_orders')]),
       total_revenue: toNumber(row[idx('total_revenue')]),
@@ -277,7 +277,7 @@ export function useDashboardData(dateRange: DateRange) {
       setData((prev) => ({ ...prev, isLoading: true }))
 
       try {
-        // For GA4 and Shopify, we need to get the credentialId from service configuration
+        // For GA4, Shopify, and Meta, we need to get the credentialId from service configuration
         let result;
         if (platform === 'ga4') {
           const ga4CredentialId = serviceConfig.ga4.credentialId;
@@ -295,6 +295,14 @@ export function useDashboardData(dateRange: DateRange) {
 
           // Use modern syncService which uses stored credentials from backend
           result = await api.syncService(platform, { credentialId: shopifyCredentialId })
+        } else if (platform === 'meta') {
+          const metaCredentialId = serviceConfig.meta.credentialId;
+          if (!metaCredentialId) {
+            return { success: false, error: 'Meta credential ID not found. Please reconfigure Meta in Settings.' };
+          }
+
+          // Use modern syncService which uses stored credentials from backend
+          result = await api.syncService(platform, { credentialId: metaCredentialId })
         } else {
           // Use modern syncService which uses stored credentials from backend
           result = await api.syncService(platform)

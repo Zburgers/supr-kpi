@@ -5,16 +5,17 @@
  * @module services/ga4
  */
 
+import { v4 as uuidv4 } from 'uuid';
 import { google } from 'googleapis';
 import { JWT } from 'google-auth-library';
 import { executeQuery } from '../lib/database.js';
 import { decryptCredential } from '../lib/encryption.js';
 import { logger } from '../lib/logger.js';
 import { sheetsService } from './sheets.js';
-import type { AppendResult } from './meta.js';
+import type { AppendResult, ServiceAccountStatus } from '../types/services.js';
 
 export interface GoogleAnalyticsRow {
-  id?: number;
+  id?: string; // Changed to string for UUID
   date: string;
   sessions: number;
   users: number;
@@ -59,20 +60,10 @@ class Ga4Service {
   }
 
   /**
-   * Generate a conflict-free numeric identifier using time + randomness.
-   * Keeps within Number.MAX_SAFE_INTEGER to avoid precision loss.
+   * Generate a UUID for the row identifier.
    */
-  private generateUniqueId(): number {
-    const timestamp = Date.now();
-    const randomPart = Math.floor(Math.random() * 1000); // 0-999
-    const candidate = Number(`${timestamp}${randomPart.toString().padStart(3, '0')}`);
-
-    if (Number.isSafeInteger(candidate)) {
-      return candidate;
-    }
-
-    const fallback = Math.floor(Math.random() * 1_000_000_000);
-    return fallback;
+  private generateUniqueId(): string {
+    return uuidv4();
   }
 
   /**
@@ -167,6 +158,7 @@ class Ga4Service {
     const metrics = firstRow.metricValues || [];
 
     return {
+      id: this.generateUniqueId(), // Generate UUID
       date,
       sessions: this.toNumber(metrics[0]?.value),
       users: this.toNumber(metrics[1]?.value),
@@ -250,9 +242,7 @@ class Ga4Service {
 
     if (existingRowNumber) {
       const existingIdCell = idValues[existingRowNumber - 2]?.[0];
-      const existingId = Number.isFinite(Number(existingIdCell))
-        ? Number(existingIdCell)
-        : undefined;
+      const existingId = typeof existingIdCell === 'string' ? existingIdCell : undefined;
       logger.info('GA4 data already exists for date, skipping append', {
         date: metrics.date,
         existingRowNumber,

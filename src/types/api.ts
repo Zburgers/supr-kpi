@@ -229,6 +229,44 @@ export enum ErrorCode {
 }
 
 // ============================================================================
+// SYNC ENDPOINTS
+// ============================================================================
+
+/**
+ * Base sync request interface
+ */
+export interface SyncRequest {
+  credentialId: string | number;
+  options?: {
+    spreadsheetId?: string;
+    sheetName?: string;
+  };
+}
+
+/**
+ * Base sync response interface
+ */
+export interface SyncResponse {
+  success: boolean;
+  data?: {
+    service: string;
+    date: string;
+    id: string; // UUID
+    spreadsheetId: string;
+    sheetName: string;
+    metrics: any;
+    appendResult: {
+      mode: 'append' | 'update' | 'skip';
+    } & (
+      | { success: true; rowNumber: number; id: string } // UUID
+      | { success: false; error: string }
+    );
+  };
+  message?: string;
+  error?: string;
+}
+
+// ============================================================================
 // GA4 ENDPOINTS
 // ============================================================================
 
@@ -247,7 +285,7 @@ export interface Ga4SyncResponse {
   success: boolean;
   data?: {
     metrics: {
-      id?: number;
+      id?: string; // Changed to string for UUID
       date: string;
       sessions: number;
       users: number;
@@ -257,9 +295,9 @@ export interface Ga4SyncResponse {
       bounce_rate: number;
     };
     appendResult: {
-      mode: 'append' | 'skip';
+      mode: 'append' | 'update' | 'skip';
     } & (
-      | { success: true; rowNumber: number; id: number }
+      | { success: true; rowNumber: number; id: string } // Changed to string for UUID
       | { success: false; error: string }
     );
     spreadsheetId: string;
@@ -287,7 +325,7 @@ export interface ShopifySyncResponse {
   success: boolean;
   data?: {
     metrics: {
-      id?: number;
+      id?: string; // Changed to string for UUID
       date: string;
       total_orders: number;
       total_revenue: number;
@@ -297,13 +335,64 @@ export interface ShopifySyncResponse {
       repeat_customers: number;
     };
     appendResult: {
-      mode: 'append' | 'skip';
+      mode: 'append' | 'update' | 'skip';
     } & (
-      | { success: true; rowNumber: number; id: number }
+      | { success: true; rowNumber: number; id: string } // Changed to string for UUID
       | { success: false; error: string }
     );
     spreadsheetId: string;
     sheetName: string;
   };
+  error?: string;
+}
+
+// ============================================================================
+// META ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/meta/sync
+ */
+export interface MetaSyncRequest {
+  credentialId: string | number;
+  options?: {
+    spreadsheetId?: string;
+    sheetName?: string;
+  };
+}
+
+export interface MetaSyncResponse {
+  success: boolean;
+  data?: {
+    metrics: {
+      id?: string; // UUID
+      date: string;
+      spend: number;
+      reach: number;
+      impressions: number;
+      clicks: number;
+      landing_page_views: number;
+      add_to_cart: number;
+      initiate_checkout: number;
+      purchases: number;
+      revenue: number;
+      metricSources?: {
+        landing_page_views_source: string;
+        add_to_cart_source: string;
+        initiate_checkout_source: string;
+        purchases_source: string;
+        revenue_source: string;
+      };
+    };
+    appendResult: {
+      mode: 'append' | 'update' | 'skip';
+    } & (
+      | { success: true; rowNumber: number; id: string } // UUID
+      | { success: false; error: string }
+    );
+    spreadsheetId: string;
+    sheetName: string;
+  };
+  message?: string;
   error?: string;
 }

@@ -20,20 +20,20 @@ import {
   Ga4SyncResponse,
   Ga4SyncRequest 
 } from '../types/api.js';
-import type { AppendResult } from '../services/meta.js';
+import type { AppendResult } from '../types/services.js';
 
 function normalizeAppendResult(appendResult: AppendResult): {
-  mode: 'append' | 'skip';
-  success: true; rowNumber: number; id: number;
-} | { mode: 'append' | 'skip'; success: false; error: string } {
-  const mode: 'append' | 'skip' = appendResult.mode === 'skip' ? 'skip' : 'append';
+  mode: 'append' | 'update' | 'skip';
+  success: true; rowNumber: number; id: string;
+} | { mode: 'append' | 'update' | 'skip'; success: false; error: string } {
+  const mode: 'append' | 'update' | 'skip' = appendResult.mode || 'append';
 
   if (appendResult.success) {
     return {
       mode,
       success: true,
       rowNumber: appendResult.rowNumber ?? 0,
-      id: appendResult.id ?? 0,
+      id: appendResult.id ?? '',
     };
   }
 

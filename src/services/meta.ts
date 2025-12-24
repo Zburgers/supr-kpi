@@ -1,6 +1,10 @@
 /**
- * META INSIGHTS TO GOOGLE SHEETS AUTOMATION WORKFLOW
+ * META INSIGHTS TO GOOGLE SHEETS AUTOMATION WORKFLOW (DEPRECATED)
  * ===================================================
+ *
+ * ⚠️  DEPRECATION WARNING: This module is deprecated. Please use the new Meta service
+ * located at services/meta.service.ts which follows the same credential management
+ * pattern as GA4 and Shopify services.
  *
  * WORKFLOW OVERVIEW:
  * 1. Fetch yesterday's Meta ad insights from Graph API endpoint
@@ -22,19 +26,19 @@
  * DATA MAPPING RULES:
  * DATA MAPPING RULES (DETERMINISTIC - CANONICAL SOURCES ONLY):
  * - Basic fields (date_start, spend, reach, impressions, clicks) → direct mapping
- * 
+ *
  * - landing_page_views → PICK ONLY: landing_page_view (NOT view_content which counts all visits)
  *                        fallback: omni_landing_page_view
- * 
+ *
  * - add_to_cart → PICK ONLY (in order): add_to_cart, offsite_conversion.fb_pixel_add_to_cart,
  *                 omni_add_to_cart
- * 
+ *
  * - initiate_checkout → PICK ONLY (in order): initiate_checkout,
  *                       offsite_conversion.fb_pixel_initiate_checkout, omni_initiated_checkout
- * 
+ *
  * - purchases → PICK ONLY (in order): purchase, offsite_conversion.fb_pixel_purchase,
  *               omni_purchase, onsite_web_purchase, onsite_web_app_purchase, web_in_store_purchase
- * 
+ *
  * - revenue → PICK CANONICAL SOURCE ONLY (do NOT sum variants):
  *             Order: purchase → offsite_conversion.fb_pixel_purchase → omni_purchase → ...
  *             WHY: Multiple purchase variants can exist in the data (all identical from Meta).
@@ -61,6 +65,7 @@
  * - Additional API calls can be chained before/after sheet append
  *
  * @module services/meta
+ * @deprecated Use services/meta.service.ts instead
  */
 
 import { sheetsService } from "./sheets.js";
@@ -744,12 +749,19 @@ class MetaInsightsWorkflow {
    * @param credentialJson - Optional credential JSON from database
    * @returns Normalized metrics that were appended
    * @throws Error if any step fails
+   *
+   * @deprecated Use the new MetaService from services/meta.service.ts instead
    */
   async runWorkflow(
     accessToken: string,
     options?: MetaRunOptions,
     credentialJson?: string
   ): Promise<MetaWorkflowResult> {
+    console.warn(
+      "⚠️  DEPRECATION WARNING: This Meta service is deprecated. " +
+      "Please use the new MetaService from services/meta.service.ts which follows " +
+      "the same credential management pattern as GA4 and Shopify services."
+    );
     console.log("=".repeat(70));
     console.log("🚀 Starting Meta insights workflow...");
     console.log("=".repeat(70));

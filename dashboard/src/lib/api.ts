@@ -382,6 +382,32 @@ export async function syncService(service: 'meta' | 'ga4' | 'shopify', options?:
     })
   }
 
+  // For Meta, use the new endpoint that handles stored credentials
+  if (service === 'meta' && options?.credentialId) {
+    // Call the new Meta endpoint which requires credentialId
+    const metaOptions: {
+      credentialId: string | number
+      options?: {
+        spreadsheetId?: string
+        sheetName?: string
+      }
+    } = {
+      credentialId: options.credentialId,
+    };
+
+    // Add optional parameters if they exist
+    if (options.spreadsheetId || options.sheetName) {
+      metaOptions.options = {};
+      if (options.spreadsheetId) metaOptions.options.spreadsheetId = options.spreadsheetId;
+      if (options.sheetName) metaOptions.options.sheetName = options.sheetName;
+    }
+
+    return fetchApi<SyncResponse>('/meta/sync', {
+      method: 'POST',
+      body: JSON.stringify(metaOptions),
+    })
+  }
+
   // For other services or when credentialId is not provided, use the old endpoint
   return fetchApi<SyncResponse>(`/v1/sync/${service}`, {
     method: 'POST',

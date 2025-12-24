@@ -54,7 +54,7 @@ export function ManualPullDialog() {
 
     setIsPulling(prev => ({ ...prev, [platform]: true }))
     try {
-      // For GA4 and Shopify, we need to pass the credentialId from service configuration
+      // For GA4, Shopify, and Meta, we need to pass the credentialId from service configuration
       let response;
       if (platform === 'ga4') {
         const ga4CredentialId = serviceConfig.ga4.credentialId;
@@ -87,6 +87,22 @@ export function ManualPullDialog() {
         response = await api.syncService(platform, {
           targetDate,
           credentialId: shopifyCredentialId
+        });
+      } else if (platform === 'meta') {
+        const metaCredentialId = serviceConfig.meta.credentialId;
+        if (!metaCredentialId) {
+          setResults(prev => [...prev, {
+            platform: platformName,
+            success: false,
+            message: 'Meta credential ID not found. Please reconfigure Meta in Settings.',
+          }]);
+          return;
+        }
+
+        // Use modern syncService which uses stored credentials from backend
+        response = await api.syncService(platform, {
+          targetDate,
+          credentialId: metaCredentialId
         });
       } else {
         // Use modern syncService which uses stored credentials from backend
