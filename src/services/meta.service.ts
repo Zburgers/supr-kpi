@@ -489,6 +489,20 @@ class MetaService {
       sheetName: targetSheetName
     });
 
+    // Get Google Sheets credentials for this user
+    const sheetsCredentialResult = await executeQuery(
+      `SELECT encrypted_data, service FROM credentials WHERE service = $1 AND user_id = $2 AND verified = true AND deleted_at IS NULL LIMIT 1`,
+      ['google_sheets', userId],
+      userId
+    );
+
+    if (sheetsCredentialResult.rows.length === 0) {
+      throw new Error('No verified Google Sheets credentials found');
+    }
+
+    const sheetsCredential = sheetsCredentialResult.rows[0];
+    const sheetsDecryptedJson = decryptCredential(sheetsCredential.encrypted_data, String(userId));
+
     // Fetch Meta data
     const apiResponse = await this.fetchFromMetaApi(access_token, account_id);
 
@@ -496,15 +510,15 @@ class MetaService {
     const metrics = this.parseMetrics(apiResponse);
 
     // Verify service account so we can report status
-    await sheetsService.initializeWithCredentials(decryptedJson);
-    const serviceAccount = await sheetsService.verifyServiceAccount(decryptedJson);
+    await sheetsService.initializeWithCredentials(sheetsDecryptedJson);
+    const serviceAccount = await sheetsService.verifyServiceAccount(sheetsDecryptedJson);
 
     // Upsert to sheet
     const appendResult = await this.upsertToSheet(
       metrics,
       targetSpreadsheetId,
       targetSheetName,
-      decryptedJson
+      sheetsDecryptedJson
     );
 
     logger.info('Meta workflow completed', {
