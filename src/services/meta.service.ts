@@ -159,8 +159,11 @@ class MetaService {
   private async fetchFromMetaApi(accessToken: string, adAccountId: string): Promise<MetaApiResponse> {
     logger.info('Fetching Meta insights from Graph API', { adAccountId });
 
-    // Build the endpoint URL with the actual ad account ID
-    const endpoint = `https://graph.facebook.com/v24.0/${adAccountId}/insights?time_increment=1&date_preset=yesterday&action_breakdowns=action_type&fields=date_start%2Cdate_stop%2Cspend%2Creach%2Cimpressions%2Cclicks%2Cactions%2Caction_values`;
+    // Ensure the ad account ID has the 'act_' prefix required by Meta's Graph API
+    const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+
+    // Build the endpoint URL with the properly formatted ad account ID
+    const endpoint = `https://graph.facebook.com/v24.0/${formattedAdAccountId}/insights?time_increment=1&date_preset=yesterday&action_breakdowns=action_type&fields=date_start%2Cdate_stop%2Cspend%2Creach%2Cimpressions%2Cclicks%2Cactions%2Caction_values`;
     const fullUrl = `${endpoint}&access_token=${encodeURIComponent(accessToken)}`;
 
     let response: Response;
