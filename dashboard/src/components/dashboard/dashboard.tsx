@@ -702,11 +702,19 @@ export function Dashboard() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t py-4 mt-8">
+      <footer className="border-t py-6 mt-8">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-          <p className="text-center text-sm text-muted-foreground">
-            KPI Data Command Center • Built with ⚡ for SUPR
-          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <img src="/pegasus-icon.svg" alt="Pegasus" className="h-5 w-5 opacity-60" />
+              <span className="text-sm text-muted-foreground">
+                Pegasus Analytics Platform
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Unified KPI tracking for modern e-commerce
+            </p>
+          </div>
         </div>
       </footer>
     </div>
