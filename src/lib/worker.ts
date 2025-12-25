@@ -92,16 +92,25 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
         credentialJson = decryptCredential(encryptedData, String(userId));
       } else {
         jobLogger.error('Credential not found in database', { credentialId });
+
+        // Send notification about credential not found
+        await notifier.sendDiscord(`❌ **Worker Error**\n\nCredential with ID ${credentialId} not found in database.\nTime: ${new Date().toISOString()}`);
         throw new Error(`Credential with ID ${credentialId} not found in database`);
       }
     } else {
       jobLogger.error('No enabled service configuration found', { service: source, userId: jobUserId });
+
+      // Send notification about missing service configuration
+      await notifier.sendDiscord(`❌ **Worker Error**\n\nNo enabled service configuration found for service: ${source}.\nUser ID: ${jobUserId}\nTime: ${new Date().toISOString()}`);
       throw new Error(`No enabled service configuration found for service: ${source}. Please configure credentials in the dashboard.`);
     }
 
     // If no stored credentials found, throw an error instead of falling back to environment variables
     if (!credentialJson) {
       jobLogger.error('No stored credentials found for service', { service: source });
+
+      // Send notification about missing stored credentials
+      await notifier.sendDiscord(`❌ **Worker Error**\n\nNo stored credentials found for service: ${source}.\nTime: ${new Date().toISOString()}`);
       throw new Error(`No stored credentials found for service: ${source}. Please configure credentials in the dashboard.`);
     }
 
@@ -339,8 +348,11 @@ class ETLWorker {
       });
     });
 
-    this.worker.on('error', (error) => {
+    this.worker.on('error', async (error) => {
       logger.error('Worker error', { error: error.message });
+
+      // Send notification about worker error
+      await notifier.sendDiscord(`❌ **Worker Error**\n\nETL worker encountered an error.\nError: ${error.message}\nTime: ${new Date().toISOString()}`);
     });
 
     this.worker.on('stalled', (jobId) => {

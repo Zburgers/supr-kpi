@@ -16,6 +16,8 @@ import { NotificationController } from './../controllers/scheduler.controller.js
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { HealthController } from './../controllers/health.controller.js';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { DiscordNotificationsController } from './../controllers/discord-notifications.controller.js';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { CredentialController } from './../controllers/credential.controller.js';
 import { expressAuthentication } from './../authentication.js';
 // @ts-ignore - no great way to install types from subpackage
@@ -225,6 +227,44 @@ const models: TsoaRoute.Models = {
             "completed": {"dataType":"double","required":true},
             "failed": {"dataType":"double","required":true},
             "delayed": {"dataType":"double","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ApiResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"boolean","required":true},
+            "message": {"dataType":"string"},
+            "data": {"dataType":"any"},
+            "error": {"dataType":"string"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "DiscordNotificationRequest": {
+        "dataType": "refObject",
+        "properties": {
+            "message": {"dataType":"string","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ApiResponse__discord-boolean__": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"boolean","required":true},
+            "message": {"dataType":"string"},
+            "data": {"dataType":"nestedObjectLiteral","nestedProperties":{"discord":{"dataType":"boolean","required":true}}},
+            "error": {"dataType":"string"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "DiscordTestRequest": {
+        "dataType": "refObject",
+        "properties": {
+            "message": {"dataType":"string"},
         },
         "additionalProperties": false,
     },
@@ -899,6 +939,68 @@ export function RegisterRoutes(app: Router) {
 
               await templateService.apiHandler({
                 methodName: 'getQueueStats',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscordNotificationsController_sendNotification: Record<string, TsoaRoute.ParameterSchema> = {
+                requestBody: {"in":"body","name":"requestBody","required":true,"ref":"DiscordNotificationRequest"},
+        };
+        app.post('/discord/send',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscordNotificationsController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscordNotificationsController.prototype.sendNotification)),
+
+            async function DiscordNotificationsController_sendNotification(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscordNotificationsController_sendNotification, request, response });
+
+                const controller = new DiscordNotificationsController();
+
+              await templateService.apiHandler({
+                methodName: 'sendNotification',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscordNotificationsController_testNotification: Record<string, TsoaRoute.ParameterSchema> = {
+                requestBody: {"in":"body","name":"requestBody","ref":"DiscordTestRequest"},
+        };
+        app.post('/discord/test',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscordNotificationsController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscordNotificationsController.prototype.testNotification)),
+
+            async function DiscordNotificationsController_testNotification(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscordNotificationsController_testNotification, request, response });
+
+                const controller = new DiscordNotificationsController();
+
+              await templateService.apiHandler({
+                methodName: 'testNotification',
                 controller,
                 response,
                 next,

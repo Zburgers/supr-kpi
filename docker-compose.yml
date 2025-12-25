@@ -105,14 +105,14 @@ services:
       - PORT=3001
       - TZ=${TZ:-Asia/Kolkata}
       - TRUST_PROXY=true
-      
+
       # Security (optional API key)
       - API_KEY=${API_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-}
-      
+
       # Redis configuration
       - REDIS_URL=redis://redis:6379
-      
+
       # PostgreSQL configuration
       - DATABASE_URL=postgres://${POSTGRES_USER:-kpi_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kpi_etl}
       - POSTGRES_HOST=postgres
@@ -123,48 +123,28 @@ services:
       # Database pool configuration (for database.ts)
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=${POSTGRES_DB:-pegasus_kpi}
-      - DB_USER=${POSTGRES_USER:-master}
+      - DB_NAME=${POSTGRES_DB:-kpi_etl}
+      - DB_USER=${POSTGRES_USER:-kpi_user}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - DB_POOL_SIZE=20
-      
+
       # Clerk Authentication
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - CLERK_PUBLIC_KEY=${CLERK_PUBLIC_KEY}
-    
-      
+
       # Encryption (generate with: openssl rand -base64 32)
       - MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY}
-      
+
       # Scheduler configuration
-      - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-false}
+      - ENABLE_SCHEDULER=${ENABLE_SCHEDULER:-true}
       - CRON_SCHEDULE=${CRON_SCHEDULE:-0 2 * * *}
       - MAX_RETRIES=${MAX_RETRIES:-3}
-      
-      # Google Sheets configuration
-      - GOOGLE_SPREADSHEET_ID=${GOOGLE_SPREADSHEET_ID}
-      
-      # Meta configuration
+
+      # Service configuration
       - META_ENABLED=${META_ENABLED:-true}
-      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN}
-      - META_AD_ACCOUNT_ID=${META_AD_ACCOUNT_ID}
-      - META_SPREADSHEET_ID=${META_SPREADSHEET_ID}
-      - META_SHEET_NAME=${META_SHEET_NAME}
-      
-      # GA4 configuration
       - GA4_ENABLED=${GA4_ENABLED:-true}
-      - GOOGLE_ACCESS_TOKEN=${GOOGLE_ACCESS_TOKEN}
-      - GA4_PROPERTY_ID=${GA4_PROPERTY_ID}
-      - GA4_SPREADSHEET_ID=${GA4_SPREADSHEET_ID}
-      - GA4_SHEET_NAME=${GA4_SHEET_NAME}
-      
-      # Shopify configuration
       - SHOPIFY_ENABLED=${SHOPIFY_ENABLED:-true}
-      - SHOPIFY_STORE_DOMAIN=${SHOPIFY_STORE_DOMAIN}
-      - SHOPIFY_ACCESS_TOKEN=${SHOPIFY_ACCESS_TOKEN}
-      - SHOPIFY_SPREADSHEET_ID=${SHOPIFY_SPREADSHEET_ID}
-      - SHOPIFY_SHEET_NAME=${SHOPIFY_SHEET_NAME}
-      
+
       # Notification configuration
       - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
@@ -174,7 +154,7 @@ services:
       - SMTP_PORT=${SMTP_PORT:-587}
       - EMAIL_FROM=${EMAIL_FROM}
       - EMAIL_TO=${EMAIL_TO}
-      
+
       # Logging
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:

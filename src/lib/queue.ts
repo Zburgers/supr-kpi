@@ -8,6 +8,7 @@
 import { Queue, Worker, Job, QueueEvents } from 'bullmq';
 import { config } from '../config/index.js';
 import { logger, events } from './logger.js';
+import { notifier } from './notifier.js';
 import { ETLJobPayload, ETLJobResult, DataSource, IsoDate } from '../types/etl.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -100,8 +101,11 @@ class ETLQueue {
         logger.info(`Job ${jobId} completed`, { returnvalue });
       });
 
-      this.queueEvents.on('failed', ({ jobId, failedReason }) => {
+      this.queueEvents.on('failed', async ({ jobId, failedReason }) => {
         logger.error(`Job ${jobId} failed`, { failedReason });
+
+        // Send notification about job failure
+        await notifier.sendDiscord(`❌ **Queue Job Failed**\n\nJob ${jobId} failed.\nReason: ${failedReason}\nTime: ${new Date().toISOString()}`);
       });
 
       this.isInitialized = true;
@@ -111,6 +115,9 @@ class ETLQueue {
       logger.error('Failed to initialize ETL Queue', {
         error: error instanceof Error ? error.message : String(error),
       });
+
+      // Send notification about queue initialization failure
+      await notifier.sendDiscord(`❌ **Queue Error**\n\nFailed to initialize ETL Queue.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
       throw error;
     }
   }

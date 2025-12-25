@@ -8,6 +8,7 @@
 import cron from 'node-cron';
 import { config } from '../config/index.js';
 import { logger } from './logger.js';
+import { notifier } from './notifier.js';
 import { etlQueue } from './queue.js';
 import { executeQuery } from './database.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -62,6 +63,9 @@ class EnhancedScheduler {
       logger.error('Failed to start enhanced scheduler', {
         error: error instanceof Error ? error.message : String(error),
       });
+
+      // Send notification about scheduler start failure
+      await notifier.sendDiscord(`❌ **Critical Scheduler Error**\n\nFailed to start enhanced scheduler.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
       throw error;
     }
   }
@@ -101,6 +105,9 @@ class EnhancedScheduler {
       logger.error('Failed to load active schedules from database', {
         error: error instanceof Error ? error.message : String(error),
       });
+
+      // Send notification about schedule loading failure
+      await notifier.sendDiscord(`❌ **Scheduler Error**\n\nFailed to load active schedules from database.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
       throw error;
     }
   }
@@ -160,6 +167,9 @@ class EnhancedScheduler {
               service: schedule.service,
               error: error instanceof Error ? error.message : String(error),
             });
+
+            // Send notification about sync failure
+            await notifier.sendDiscord(`❌ **Scheduled Sync Failed**\n\nScheduled sync failed for user ${schedule.user_id}, service ${schedule.service}.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
 
             // Schedule a retry after 10 minutes if the job failed
             await this.scheduleRetry(
@@ -375,6 +385,9 @@ class EnhancedScheduler {
       logger.error('Failed to refresh schedules', {
         error: error instanceof Error ? error.message : String(error),
       });
+
+      // Send notification about refresh failure
+      await notifier.sendDiscord(`❌ **Scheduler Error**\n\nFailed to refresh schedules.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
       throw error;
     }
   }
@@ -437,6 +450,9 @@ class EnhancedScheduler {
         service,
         error: error instanceof Error ? error.message : String(error),
       });
+
+      // Send notification about update failure
+      await notifier.sendDiscord(`❌ **Scheduler Error**\n\nFailed to update schedule for user ${userId}, service ${service}.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
       throw error;
     }
   }
@@ -535,6 +551,9 @@ class EnhancedScheduler {
         service,
         error: error instanceof Error ? error.message : String(error),
       });
+
+      // Send notification about creation failure
+      await notifier.sendDiscord(`❌ **Scheduler Error**\n\nFailed to create schedule for user ${userId}, service ${service}.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
       throw error;
     }
   }
@@ -566,6 +585,9 @@ class EnhancedScheduler {
         userId,
         error: errorMessage,
       });
+
+      // Send notification about get schedules failure
+      await notifier.sendDiscord(`❌ **Scheduler Error**\n\nFailed to get schedules for user ${userId}.\nError: ${errorMessage}\nTime: ${new Date().toISOString()}`);
       throw error; // Re-throw for other types of errors
     }
   }
@@ -624,6 +646,9 @@ class EnhancedScheduler {
       logger.error('Failed to handle missed jobs', {
         error: error instanceof Error ? error.message : String(error),
       });
+
+      // Send notification about missed jobs handling failure
+      await notifier.sendDiscord(`❌ **Scheduler Error**\n\nFailed to handle missed scheduled jobs.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
     }
   }
 

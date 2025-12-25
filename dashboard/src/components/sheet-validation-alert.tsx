@@ -7,7 +7,7 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { AlertCircle, CheckCircle, AlertTriangle, Info } from 'lucide-react'
-import { HeaderValidationResult } from '@/lib/sheet-validation'
+import type { HeaderValidationResult } from '@/lib/sheet-validation'
 import type { Platform } from '@/types'
 
 interface SheetValidationAlertProps {
@@ -16,7 +16,7 @@ interface SheetValidationAlertProps {
   onDismiss?: () => void
 }
 
-export function SheetValidationAlert({ validation, service, onDismiss }: SheetValidationAlertProps) {
+export function SheetValidationAlert({ validation, service }: SheetValidationAlertProps) {
   if (!validation) return null
 
   // Valid sheet - show success

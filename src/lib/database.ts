@@ -10,6 +10,7 @@
 
 import pg, { Pool, PoolClient } from 'pg';
 import { logger } from './logger.js';
+import { notifier } from './notifier.js';
 
 // Export Pool type for use in other modules
 export type DatabasePool = Pool;
@@ -53,6 +54,9 @@ export async function initializeDatabase(): Promise<void> {
     await initializeSchema();
   } catch (error) {
     logger.error('Failed to initialize database', { error: String(error) });
+
+    // Send notification about database initialization failure
+    await notifier.sendDiscord(`❌ **Database Error**\n\nFailed to initialize database.\nError: ${String(error)}\nTime: ${new Date().toISOString()}`);
     throw new Error('Database initialization failed');
   }
 }
@@ -291,6 +295,9 @@ export async function initializeSchema(): Promise<void> {
   } catch (error) {
     await client.query('ROLLBACK');
     logger.error('Failed to initialize schema', { error: String(error) });
+
+    // Send notification about schema initialization failure
+    await notifier.sendDiscord(`❌ **Database Error**\n\nFailed to initialize database schema.\nError: ${String(error)}\nTime: ${new Date().toISOString()}`);
     throw error;
   } finally {
     client.release();
@@ -323,6 +330,13 @@ export async function executeQuery<T = any>(
     };
   } catch (error) {
     logger.error('Query execution failed', { error: String(error), sql });
+
+    // Send notification about critical query failures (connection issues, etc.)
+    const errorMessage = String(error);
+    if (errorMessage.includes('connection') || errorMessage.includes('database') || errorMessage.includes('server')) {
+      await notifier.sendDiscord(`❌ **Database Error**\n\nQuery execution failed: ${errorMessage}\nSQL: ${sql}\nTime: ${new Date().toISOString()}`);
+    }
+
     throw error;
   } finally {
     client.release();
@@ -355,6 +369,13 @@ export async function executeTransaction<T>(
   } catch (error) {
     await client.query('ROLLBACK');
     logger.error('Transaction failed', { error: String(error) });
+
+    // Send notification about transaction failures for critical errors
+    const errorMessage = String(error);
+    if (errorMessage.includes('connection') || errorMessage.includes('database') || errorMessage.includes('server')) {
+      await notifier.sendDiscord(`❌ **Database Error**\n\nTransaction failed: ${errorMessage}\nTime: ${new Date().toISOString()}`);
+    }
+
     throw error;
   } finally {
     client.release();

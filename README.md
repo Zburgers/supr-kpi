@@ -410,9 +410,32 @@ ls n8nworkflows-*.json
 
 ISC
 
+## 🤖 Discord Notifications
+
+The system includes a Discord notification system to alert administrators of critical events and failures:
+
+### Configuration
+- The Discord webhook URL is hardcoded in the system (for now)
+- Notifications are sent for critical failures including:
+  - Scheduler errors
+  - Worker errors
+  - Database connection issues
+  - Sync failures
+  - Queue job failures
+
+### API Endpoints
+- `POST /api/discord/send` - Send a custom notification to Discord
+- `POST /api/discord/test` - Test the Discord notification system
+
+### Notification Types
+- Sync failures with error details
+- Critical system errors
+- Token expiry alerts
+- Rate limit warnings
+
 ---
 
-**Last Updated**: December 9, 2025
+**Last Updated**: December 26, 2025
 
 **Author**: Development Team
 

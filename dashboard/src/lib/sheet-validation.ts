@@ -228,11 +228,7 @@ export async function createSheetHeaders(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const headers = SHEET_SCHEMAS[service]
-    
-    // Use the backend's append endpoint to add headers
-    // This would be a new endpoint or we use the existing sync with special params
-    // For now, we'll document that the sync endpoint should handle this
-    
+
     if (!credentialId) {
       return {
         success: false,
@@ -240,10 +236,10 @@ export async function createSheetHeaders(
       }
     }
 
-    // TODO: Call backend endpoint to append headers
-    // const response = await api.appendSheetRow(spreadsheetId, sheetName, [headers], credentialId)
-    // For now, we return success and rely on backend to handle header creation during sync
-    
+    // Headers will be created automatically during the first sync
+    // The sync process handles creating headers if the sheet is empty
+    // This function is mainly a placeholder for future direct header creation
+    console.log(`Headers would be created for ${service} service:`, headers);
     return {
       success: true,
     }

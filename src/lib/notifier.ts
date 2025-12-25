@@ -1,6 +1,6 @@
 /**
  * Notification Service
- * Sends alerts via Telegram and Email
+ * Sends alerts via Telegram, Email, and Discord
  *
  * @module lib/notifier
  */
@@ -75,6 +75,52 @@ class Notifier {
   }
 
   /**
+   * Send Discord webhook notification
+   */
+  private async sendDiscord(content: string): Promise<boolean> {
+    // Using hardcoded Discord webhook URL
+    const webhookUrl = 'https://discord.com/api/webhooks/1453825840843587684/Gz0tMXlusciDXREYBZVlurHJ3aTE19s79ibuUmmBLS60TWWE-pkIucLghSa7Zipr2rOx';
+
+    if (!webhookUrl) {
+      logger.warn('Discord webhook URL not configured');
+      return false;
+    }
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content,
+          embeds: [{
+            title: 'KPI ETL Alert',
+            description: content,
+            color: 15158332, // Red color for errors
+            timestamp: new Date().toISOString(),
+          }]
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Discord webhook error: ${error}`);
+      }
+
+      events.emit('NOTIFICATION_SENT', { metadata: { channel: 'discord' } });
+      return true;
+    } catch (error) {
+      logger.error('Failed to send Discord notification', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      events.emit('NOTIFICATION_FAILED', {
+        error: error instanceof Error ? error.message : String(error),
+        metadata: { channel: 'discord' },
+      });
+      return false;
+    }
+  }
+
+  /**
    * Send Email notification
    * Note: Requires SMTP setup - placeholder implementation
    */
@@ -128,11 +174,22 @@ class Notifier {
 
 Please check the logs for more details.`;
 
+    // Discord message (plain text version)
+    const discordMessage = `🚨 **ETL Sync Failed**
+
+**Source:** ${source.toUpperCase()}
+**Date:** ${date}
+**Error:** ${error}
+**Time:** ${new Date().toISOString()}
+
+Please check the logs for more details.`;
+
     const emailSubject = `[KPI ETL] Sync Failed: ${source.toUpperCase()}`;
     const emailBody = `ETL Sync Failed\n\nSource: ${source}\nDate: ${date}\nError: ${error}\nTime: ${new Date().toISOString()}`;
 
     await Promise.all([
       this.sendTelegram(message),
+      this.sendDiscord(discordMessage),
       this.sendEmail(emailSubject, emailBody),
     ]);
 
@@ -172,7 +229,30 @@ Please check the logs for more details.`;
 
     message += `\n<b>Time:</b> ${new Date().toISOString()}`;
 
-    await this.sendTelegram(message);
+    // Discord message (plain text version)
+    let discordMessage = `📊 **Daily ETL Summary**\n\n`;
+
+    if (successful.length > 0) {
+      discordMessage += `✅ **Successful (${successful.length}):**\n`;
+      successful.forEach((r) => {
+        discordMessage += `  • ${r.source.toUpperCase()}: ${r.mode} at row ${r.rowNumber}\n`;
+      });
+      discordMessage += '\n';
+    }
+
+    if (failed.length > 0) {
+      discordMessage += `❌ **Failed (${failed.length}):**\n`;
+      failed.forEach((r) => {
+        discordMessage += `  • ${r.source.toUpperCase()}: ${r.error || 'Unknown error'}\n`;
+      });
+    }
+
+    discordMessage += `\n**Time:** ${new Date().toISOString()}`;
+
+    await Promise.all([
+      this.sendTelegram(message),
+      this.sendDiscord(discordMessage),
+    ]);
   }
 
   /**
@@ -192,7 +272,17 @@ Please check the logs for more details.`;
 
 Please refresh the access token for ${source}.`;
 
-    await this.sendTelegram(message);
+    const discordMessage = `⚠️ **Token Expired**
+
+**Source:** ${source.toUpperCase()}
+**Time:** ${new Date().toISOString()}
+
+Please refresh the access token for ${source}.`;
+
+    await Promise.all([
+      this.sendTelegram(message),
+      this.sendDiscord(discordMessage),
+    ]);
     this.setCooldown(cooldownKey);
   }
 
@@ -213,7 +303,17 @@ Please refresh the access token for ${source}.`;
 
 The ${source} API is rate limiting requests. Syncs will be retried automatically.`;
 
-    await this.sendTelegram(message);
+    const discordMessage = `⏳ **Rate Limited**
+
+**Source:** ${source.toUpperCase()}
+**Time:** ${new Date().toISOString()}
+
+The ${source} API is rate limiting requests. Syncs will be retried automatically.`;
+
+    await Promise.all([
+      this.sendTelegram(message),
+      this.sendDiscord(discordMessage),
+    ]);
     this.setCooldown(cooldownKey);
   }
 
@@ -234,13 +334,16 @@ The ${source} API is rate limiting requests. Syncs will be retried automatically
   async testNotifications(): Promise<{
     telegram: boolean;
     email: boolean;
+    discord: boolean;
   }> {
     const testMessage = `🧪 <b>Test Notification</b>\n\nKPI ETL Pipeline notification test.\nTime: ${new Date().toISOString()}`;
+    const discordMessage = `🧪 **Test Notification**\n\nKPI ETL Pipeline notification test.\nTime: ${new Date().toISOString()}`;
 
     const telegram = await this.sendTelegram(testMessage);
+    const discord = await this.sendDiscord(discordMessage);
     const email = await this.sendEmail('KPI ETL Test', 'This is a test notification.');
 
-    return { telegram, email };
+    return { telegram, email, discord };
   }
 }
 

@@ -6,7 +6,7 @@
     "outputDirectory": "dist",
     "specVersion": 3,
     "securityDefinitions": {
-      "jwt": {
+      "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
@@ -37,6 +37,10 @@
       {
         "name": "Scheduler",
         "description": "Scheduler management"
+      },
+      {
+        "name": "Discord Notifications",
+        "description": "Discord notification operations"
       }
     ]
   },

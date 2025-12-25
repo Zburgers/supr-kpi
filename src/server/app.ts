@@ -43,6 +43,7 @@ import metaRoutes from '../routes/meta.js';
 import userRoutes from '../routes/user.js';
 import scheduleRoutes from '../routes/schedules.js';
 import activityLogRoutes from '../routes/activity-log.js';
+import discordNotificationRoutes from '../routes/discord-notifications.js';
 
 // Queue system
 import { etlQueue } from '../lib/queue.js';
@@ -181,6 +182,7 @@ app.use('/api/shopify', authenticate, shopifyRoutes);
 app.use('/api/meta', authenticate, metaRoutes);
 app.use('/api/schedules', authenticate, scheduleRoutes);
 app.use('/api/activity-log', authenticate, activityLogRoutes);
+app.use('/api/discord', authenticate, discordNotificationRoutes);
 
 // ============================================================================
 // LEGACY ENDPOINTS - NOT YET MIGRATED TO TSOA
