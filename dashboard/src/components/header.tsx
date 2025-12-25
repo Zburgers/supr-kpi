@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { useTheme } from '@/components/theme-provider'
-import { formatDateRange } from '@/lib/utils'
 import { RefreshCw, Moon, Sun, Monitor, Settings, ChevronRight, Calendar } from 'lucide-react'
 import type { DateRange } from '@/types'
 
@@ -29,7 +28,7 @@ interface HeaderProps {
   lastUpdated: Date | null
   showNavigation?: boolean
   breadcrumbs?: Array<{ label: string; href?: string }>
-  dataDateRange?: { start: string; end: string } | null
+  requestedDateRange?: { start: string; end: string } | null
 }
 
 export function Header({
@@ -40,7 +39,7 @@ export function Header({
   lastUpdated,
   showNavigation = true,
   breadcrumbs,
-  dataDateRange,
+  requestedDateRange,
 }: HeaderProps) {
   const { theme, setTheme } = useTheme()
 
@@ -105,11 +104,13 @@ export function Header({
                   </SelectContent>
                 </Select>
 
-                {/* Date Range Badge */}
-                {dataDateRange && (
-                  <Badge variant="outline" className="hidden lg:flex items-center gap-1 text-xs">
+                {/* Date Range Badge - Shows requested date range */}
+                {requestedDateRange && (
+                  <Badge variant="secondary" className="hidden lg:flex items-center gap-1 text-xs font-medium">
                     <Calendar className="h-3 w-3" />
-                    {formatDateRange(dataDateRange.start, dataDateRange.end)}
+                    {requestedDateRange.start === requestedDateRange.end 
+                      ? requestedDateRange.start 
+                      : `${requestedDateRange.start} → ${requestedDateRange.end}`}
                   </Badge>
                 )}
               </div>

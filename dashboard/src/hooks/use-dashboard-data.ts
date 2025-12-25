@@ -56,19 +56,48 @@ export function useDashboardData(dateRange: DateRange) {
 
   const normalizeHeaders = (row: string[]): string[] => row.map((h) => h?.toString().trim().toLowerCase())
 
+  /**
+   * Normalize a date string to a timestamp for comparison
+   * Handles various date formats and ensures timezone-safe comparison
+   */
   const normalizeDate = (value: string): number | null => {
+    if (!value) return null
+    
+    // Handle YYYY-MM-DD format explicitly to avoid timezone issues
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (isoMatch) {
+      const [, year, month, day] = isoMatch
+      // Create date in local timezone
+      return new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).getTime()
+    }
+    
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return null
     return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime()
   }
 
+  // Get the requested date range bounds
+  const requestedRange = useMemo(() => getDateRange(dateRange), [dateRange])
+
   const dateBounds = useMemo(() => {
-    const { startDate, endDate } = getDateRange(dateRange)
-    return {
-      start: normalizeDate(startDate),
-      end: normalizeDate(endDate),
+    const bounds = {
+      start: normalizeDate(requestedRange.startDate),
+      end: normalizeDate(requestedRange.endDate),
     }
-  }, [dateRange])
+    
+    // Debug logging in development
+    if (import.meta.env.DEV) {
+      console.log(`📅 Date Range [${dateRange}]:`, {
+        requested: { start: requestedRange.startDate, end: requestedRange.endDate },
+        bounds: { 
+          start: bounds.start ? new Date(bounds.start).toLocaleDateString() : null,
+          end: bounds.end ? new Date(bounds.end).toLocaleDateString() : null
+        }
+      })
+    }
+    
+    return bounds
+  }, [requestedRange, dateRange])
 
   const filterByDateRange = useCallback(
     <T extends { date: string }>(rows: T[]): T[] => {
@@ -372,6 +401,12 @@ export function useDashboardData(dateRange: DateRange) {
     meta,
     ga4,
     shopify,
+    // Requested date range (what we're querying for)
+    requestedDateRange: {
+      start: requestedRange.startDate,
+      end: requestedRange.endDate,
+    },
+    // Actual data date range (what we found in the data)
     dataDateRange: actualDataDateRange,
     syncPlatform,
     syncAll,

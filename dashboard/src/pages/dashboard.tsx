@@ -35,7 +35,7 @@ export function Dashboard() {
     isLoading,
     error,
     lastSynced,
-    dataDateRange,
+    requestedDateRange,
     syncAll,
   } = useDashboardData(dateRange)
 
@@ -102,7 +102,7 @@ export function Dashboard() {
         onSync={syncAll}
         isSyncing={isLoading}
         lastUpdated={lastSynced}
-        dataDateRange={dataDateRange}
+        requestedDateRange={requestedDateRange}
       />
 
       <main className="w-full max-w-7xl mx-auto px-4 py-6 md:px-6 lg:px-8 lg:py-8">
