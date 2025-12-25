@@ -745,13 +745,21 @@ async function startServer(): Promise<void> {
   // Start scheduler if enabled
   if (process.env.ENABLE_SCHEDULER === 'true') {
     try {
-      scheduler.start();
-      logger.info('Scheduler started');
+      await scheduler.start();
+      logger.info('⏰ Scheduler started successfully');
+      console.log('⏰ Scheduler started successfully');
+      console.log('   📅 Daily syncs will run automatically at 2:00 AM IST');
+      console.log('   🔄 Manual syncs can be triggered via /api/schedules/:service/run');
     } catch (error) {
-      logger.warn('Scheduler start failed', {
+      logger.error('❌ Scheduler start failed', {
         error: error instanceof Error ? error.message : String(error),
       });
+      console.error('❌ Scheduler start failed:', error instanceof Error ? error.message : String(error));
     }
+  } else {
+    console.log('⏰ Scheduler is disabled (ENABLE_SCHEDULER=false)');
+    console.log('   📅 Daily syncs will NOT run automatically');
+    console.log('   🔄 Manual syncs can still be triggered via /api/schedules/:service/run');
   }
 
   // Start HTTP server
@@ -761,12 +769,11 @@ async function startServer(): Promise<void> {
     console.log(`📊 Open http://localhost:${PORT} in browser`);
     console.log('='.repeat(60) + '\n');
 
-    console.log('📡 API ENDPOINTS BY MODULE:');
+    console.log('📡 ACTIVE API ENDPOINTS BY MODULE:');
     console.log('');
 
-    console.log('🔒 Authentication & Authorization:');
+    console.log('🔒 Authentication & System:');
     console.log('   Health Check:              GET  /api/health');
-    console.log('   Initialize:                GET  /api/init');
 
     console.log('');
     console.log('👤 User & Onboarding:');
@@ -796,6 +803,11 @@ async function startServer(): Promise<void> {
     console.log('   List Sheet Mappings:       GET  /api/sheet-mappings');
 
     console.log('');
+    console.log('📊 Google Sheets Operations:');
+    console.log('   List Spreadsheets:         GET  /api/sheets/spreadsheets');
+    console.log('   Get Sheet Names:           GET  /api/sheets/:spreadsheetId/sheets');
+
+    console.log('');
     console.log('⏰ Automation & Schedules:');
     console.log('   List Schedules:            GET  /api/schedules');
     console.log('   Update Schedule:           PUT  /api/schedules/:service');
@@ -807,47 +819,26 @@ async function startServer(): Promise<void> {
     console.log('   Get Log Stats:             GET  /api/activity-log/stats');
 
     console.log('');
-    console.log('🔄 Sync Operations (v1):');
+    console.log('🔄 Data Sync Operations:');
     console.log('   Sync All Sources:          POST /api/v1/sync/all');
     console.log('   Sync Meta:                 POST /api/v1/sync/meta');
     console.log('   Sync GA4:                  POST /api/v1/sync/ga4');
     console.log('   Sync Shopify:              POST /api/v1/sync/shopify');
     console.log('   Direct Meta Sync:          POST /api/v1/sync/meta/direct');
-    console.log('   Direct GA4 Sync:           POST /api/v1/sync/ga4/direct');
     console.log('   Direct Shopify Sync:       POST /api/v1/sync/shopify/direct');
 
     console.log('');
-    console.log('📋 Job Management:');
+    console.log('📋 Job & Queue Management:');
     console.log('   Get Job Status:            GET  /api/v1/jobs/:jobId');
     console.log('   Queue Stats:               GET  /api/v1/queue/stats');
 
     console.log('');
-    console.log('⏰ Scheduler (Legacy):');
-    console.log('   Scheduler Status:          GET  /api/v1/scheduler/status');
-    console.log('   Start Scheduler:           POST /api/v1/scheduler/start');
-    console.log('   Stop Scheduler:            POST /api/v1/scheduler/stop');
-    console.log('   Trigger Manual Sync:       POST /api/v1/scheduler/trigger');
-
-    console.log('');
-    console.log('💬 Notifications:');
-    console.log('   Test Notifications:        POST /api/v1/notifications/test');
-
-    console.log('');
-    console.log('📊 Google Analytics 4:');
+    console.log('📊 Service-Specific Sync Endpoints:');
+    console.log('   Meta Sync:                 POST /api/meta/sync');
     console.log('   GA4 Sync:                  POST /api/ga4/sync');
-
-    console.log('');
-    console.log('📊 Legacy Google Sheets:');
-    console.log('   List Spreadsheets:         GET  /api/spreadsheets');
-    console.log('   Get Sheet Names:           GET  /api/sheets/:spreadsheetId');
-    console.log('   Read Sheet Data:           GET  /api/data/:spreadsheetId/:sheetName');
-    console.log('   Read Raw Sheet Values:     GET  /api/data/raw/:spreadsheetId/:sheetName');
-
-    console.log('');
-    console.log('🔄 Legacy Sync Operations:');
-    console.log('   Legacy Meta Fetch:         POST /api/meta/fetch');
-    console.log('   Legacy Shopify Fetch:      POST /api/shopify/fetch');
-    console.log('   Legacy GA Fetch:           POST /api/google/fetch (DEPRECATED)');
+    console.log('   GA4 Yesterday Sync:        POST /api/ga4/sync/yesterday');
+    console.log('   Shopify Sync:              POST /api/shopify/sync');
+    console.log('   Shopify Yesterday Sync:    POST /api/shopify/sync/yesterday');
 
     console.log('');
     console.log('💡 Note: All authenticated endpoints require Clerk JWT token');

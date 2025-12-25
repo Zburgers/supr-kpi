@@ -316,6 +316,7 @@ export function Settings() {
           <TabsContent value="automation">
             <AutomationSection
               schedules={schedules}
+              sheetMappings={sheetMappings}
               onEdit={setEditingSchedule}
             />
             {loadErrors.schedules && (
@@ -760,22 +761,26 @@ function SheetMappingsSection({ mappings, credentials, onEdit }: SheetMappingsSe
 // Automation Section Component
 interface AutomationSectionProps {
   schedules: Schedule[];
+  sheetMappings: SheetMapping[];
   onEdit: (service: string) => void;
 }
 
-function AutomationSection({ schedules, onEdit }: AutomationSectionProps) {
-  const services: ServiceType[] = ['google_sheets', 'meta', 'ga4', 'shopify'];
+function AutomationSection({ schedules, sheetMappings, onEdit }: AutomationSectionProps) {
+  // Only show schedulable data services (meta, ga4, shopify)
+  // google_sheets is only for sheet mappings, not for scheduling data syncs
+  const schedulableServices: ServiceType[] = ['meta', 'ga4', 'shopify'];
 
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold text-foreground">Automation & Scheduling</h2>
       <p className="text-muted-foreground">
-        Configure automated sync schedules for each service
+        Configure automated sync schedules for each data service
       </p>
 
       <div className="grid gap-4">
-        {services.map((service) => {
+        {schedulableServices.map((service) => {
           const schedule = schedules.find((s) => s.service === service);
+          const mapping = sheetMappings.find((m) => m.service === service);
 
           return (
             <div
@@ -798,6 +803,16 @@ function AutomationSection({ schedules, onEdit }: AutomationSectionProps) {
                           <span className="text-muted-foreground">Disabled</span>
                         )}
                       </div>
+                      {/* Show destination sheet info */}
+                      {mapping ? (
+                        <div className="text-sm text-muted-foreground">
+                          <span className="font-medium">Destination:</span> {mapping.sheet_name}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-amber-500">
+                          <span className="font-medium">Warning:</span> No destination sheet configured
+                        </div>
+                      )}
                       {schedule.last_run_at && (
                         <div className="text-xs text-muted-foreground/70">
                           Last run: {new Date(schedule.last_run_at).toLocaleString()}
