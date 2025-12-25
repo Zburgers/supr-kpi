@@ -1,0 +1,49 @@
+{
+  "entryFile": "src/server/app.ts",
+  "noImplicitAdditionalProperties": "throw-on-extras",
+  "controllerPathGlobs": ["src/controllers/**/*.controller.ts"],
+  "spec": {
+    "outputDirectory": "dist",
+    "specVersion": 3,
+    "securityDefinitions": {
+      "jwt": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token from Clerk authentication"
+      }
+    },
+    "tags": [
+      {
+        "name": "Health",
+        "description": "System health and status endpoints"
+      },
+      {
+        "name": "Credentials",
+        "description": "Credential management operations"
+      },
+      {
+        "name": "Services",
+        "description": "Service configuration operations"
+      },
+      {
+        "name": "User",
+        "description": "User management and onboarding"
+      },
+      {
+        "name": "Sync",
+        "description": "Data synchronization operations"
+      },
+      {
+        "name": "Scheduler",
+        "description": "Scheduler management"
+      }
+    ]
+  },
+  "routes": {
+    "routesDir": "src/generated",
+    "middleware": "express",
+    "authenticationModule": "./src/authentication.ts",
+    "esm": true
+  }
+}

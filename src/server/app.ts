@@ -9,6 +9,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import swaggerUi from 'swagger-ui-express';
 
 // Config and logging
 import { config, validateConfig, logConfig } from '../config/index.js';
@@ -27,9 +28,11 @@ import {
 // Database and authentication
 import { initializeDatabase, closeDatabase } from '../lib/database.js';
 import { authenticate, requireAuth } from '../middleware/auth.js';
-import { swaggerDocs } from '../middleware/swagger.js';
 
-// Credential management routes
+// TSOA generated routes
+import { RegisterRoutes } from '../generated/routes.js';
+
+// Legacy credential management routes (for backward compatibility)
 import credentialRoutes from '../routes/credentials.js';
 import serviceRoutes from '../routes/services.js';
 import sheetRoutes from '../routes/sheets.js';
@@ -118,227 +121,84 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// Swagger / OpenAPI documentation
-swaggerDocs(app);
+// ============================================================================
+// TSOA AUTO-GENERATED ROUTES & SWAGGER DOCS
+// ============================================================================
+
+// Register TSOA auto-generated routes (new documentation approach)
+RegisterRoutes(app);
+
+// Serve Swagger UI for TSOA-generated OpenAPI spec
+app.use('/api/docs', swaggerUi.serve, async (_req: Request, res: Response) => {
+  try {
+    // Use fs to read the swagger.json file
+    const fs = await import('fs/promises');
+    const swaggerPath = path.join(__dirname, '../../dist/swagger.json');
+    const swaggerContent = await fs.readFile(swaggerPath, 'utf-8');
+    const swaggerDocument = JSON.parse(swaggerContent);
+    return res.send(swaggerUi.generateHTML(swaggerDocument));
+  } catch (error) {
+    // Fallback: serve basic HTML if import fails
+    return res.send(`
+      <html>
+        <head><title>API Docs</title></head>
+        <body>
+          <h1>OpenAPI Documentation</h1>
+          <p>Swagger JSON available at <a href="/api/docs.json">/api/docs.json</a></p>
+          <p>Error loading Swagger UI: ${error instanceof Error ? error.message : 'Unknown error'}</p>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// Serve raw OpenAPI JSON spec
+app.get('/api/docs.json', async (_req: Request, res: Response) => {
+  try {
+    const fs = await import('fs/promises');
+    const swaggerPath = path.join(__dirname, '../../dist/swagger.json');
+    const swaggerContent = await fs.readFile(swaggerPath, 'utf-8');
+    const swaggerDocument = JSON.parse(swaggerContent);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(swaggerDocument);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load OpenAPI spec' });
+  }
+});
 
 // ============================================================================
-// CREDENTIAL MANAGEMENT ROUTES (NEW)
+// LEGACY ROUTES (for backward compatibility - will be migrated to TSOA)
 // ============================================================================
 // Routes for managing encrypted credentials and services
 
-app.use('/api/credentials', authenticate, credentialRoutes);
-app.use('/api/services', authenticate, serviceRoutes);
+// Note: These legacy routes are kept for backward compatibility
+// TSOA controllers now handle: /api/credentials, /api/services, /api/user
+// The following use legacy routers until fully migrated:
 app.use('/api/sheet-mappings', authenticate, sheetRoutes);
-app.use('/api/sheets', authenticate, sheetExternalRoutes); // Enhanced sheets routes with credential support
-app.use('/api/ga4', authenticate, ga4Routes); // GA4 analytics routes
-app.use('/api/shopify', authenticate, shopifyRoutes); // Shopify analytics routes
-app.use('/api/meta', authenticate, metaRoutes); // Meta analytics routes
+app.use('/api/sheets', authenticate, sheetExternalRoutes);
+app.use('/api/ga4', authenticate, ga4Routes);
+app.use('/api/shopify', authenticate, shopifyRoutes);
+app.use('/api/meta', authenticate, metaRoutes);
 app.use('/api/schedules', authenticate, scheduleRoutes);
 app.use('/api/activity-log', authenticate, activityLogRoutes);
-app.use('/api/user', userRoutes);
 
 // ============================================================================
-// HEALTH & STATUS ENDPOINTS
+// LEGACY ENDPOINTS - NOT YET MIGRATED TO TSOA
 // ============================================================================
-
-/**
- * Health check endpoint
- * GET /api/health
- */
-app.get('/api/health', async (_req: Request, res: Response) => {
-  try {
-    const queueStats = await etlQueue.getStats();
-    
-    const response: HealthCheckResponse = {
-      status: 'healthy',
-      version: process.env.npm_package_version || '1.0.0',
-      uptime: Math.floor((Date.now() - startTime) / 1000),
-      redis: {
-        connected: queueStats.waiting >= 0, // If we can get stats, Redis is connected
-        latencyMs: undefined,
-      },
-    };
-
-    res.json(response);
-  } catch (error) {
-    res.status(503).json({
-      status: 'unhealthy',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * Queue statistics
- * GET /api/v1/queue/stats
- */
-app.get('/api/v1/queue/stats', async (_req: Request, res: Response) => {
-  try {
-    const stats = await etlQueue.getStats();
-    res.json({ success: true, data: stats });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * Get job status
- * GET /api/v1/jobs/:jobId
- */
-app.get('/api/v1/jobs/:jobId', async (req: Request, res: Response) => {
-  try {
-    const { jobId } = req.params;
-    const status = await etlQueue.getJobStatus(jobId);
-
-    if (!status) {
-      res.status(404).json({ success: false, error: 'Job not found' });
-      return;
-    }
-
-    res.json({ success: true, data: status });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-// ============================================================================
-// SYNC API ENDPOINTS (v1) - AUTHENTICATED
-// ============================================================================
-
-/**
- * Trigger sync for all sources via queue
- * POST /api/v1/sync/all
- * Requires authentication for multi-tenant support
- */
-app.post('/api/v1/sync/all', authenticate, async (req: Request, res: Response) => {
-  if (!requireAuth(req, res)) return;
-  
-  try {
-    const { targetDate } = req.body || {};
-    const userId = req.user!.userId;
-    const jobs = await etlQueue.enqueueAllSyncs({ targetDate, userId });
-
-    res.json({
-      success: true,
-      message: `Enqueued ${jobs.length} sync jobs`,
-      data: {
-        jobs: jobs.map((j) => ({
-          jobId: j.id,
-          source: j.data.source,
-          targetDate: j.data.targetDate,
-        })),
-      },
-    });
-  } catch (error) {
-    logger.error('Failed to enqueue sync jobs', {
-      error: error instanceof Error ? error.message : String(error),
-      userId: req.user?.userId,
-    });
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * Trigger Meta sync via queue
- * POST /api/v1/sync/meta
- * Requires authentication for multi-tenant support
- */
-app.post('/api/v1/sync/meta', authenticate, async (req: Request, res: Response) => {
-  if (!requireAuth(req, res)) return;
-  
-  try {
-    const { targetDate, spreadsheetId, sheetName } = req.body || {};
-    const userId = req.user!.userId;
-    const job = await etlQueue.enqueueSync('meta', { targetDate, spreadsheetId, sheetName, userId });
-
-    res.json({
-      success: true,
-      message: 'Meta sync job enqueued',
-      data: {
-        jobId: job.id,
-        source: 'meta',
-        targetDate: job.data.targetDate,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * Trigger GA4 sync via queue
- * POST /api/v1/sync/ga4
- * Requires authentication for multi-tenant support
- */
-app.post('/api/v1/sync/ga4', authenticate, async (req: Request, res: Response) => {
-  if (!requireAuth(req, res)) return;
-  
-  try {
-    const { targetDate, spreadsheetId, sheetName } = req.body || {};
-    const userId = req.user!.userId;
-    const job = await etlQueue.enqueueSync('ga4', { targetDate, spreadsheetId, sheetName, userId });
-
-    res.json({
-      success: true,
-      message: 'GA4 sync job enqueued',
-      data: {
-        jobId: job.id,
-        source: 'ga4',
-        targetDate: job.data.targetDate,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * Trigger Shopify sync via queue
- * POST /api/v1/sync/shopify
- * Requires authentication for multi-tenant support
- */
-app.post('/api/v1/sync/shopify', authenticate, async (req: Request, res: Response) => {
-  if (!requireAuth(req, res)) return;
-  
-  try {
-    const { targetDate, spreadsheetId, sheetName } = req.body || {};
-    const userId = req.user!.userId;
-    const job = await etlQueue.enqueueSync('shopify', { targetDate, spreadsheetId, sheetName, userId });
-
-    res.json({
-      success: true,
-      message: 'Shopify sync job enqueued',
-      data: {
-        jobId: job.id,
-        source: 'shopify',
-        targetDate: job.data.targetDate,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
+// Note: The following endpoints are handled by TSOA controllers and removed from here:
+// - /api/health (HealthController)
+// - /api/v1/queue/stats (HealthController)
+// - /api/v1/jobs/:jobId (SyncController)
+// - /api/v1/sync/* (SyncController)
+// - /api/credentials/* (CredentialController)
+// - /api/services/* (ServiceController)
+// - /api/user/* (UserController)
+// - /api/v1/scheduler/* (SchedulerController)
+// - /api/v1/notifications/* (NotificationController)
 
 // ============================================================================
 // DIRECT SYNC ENDPOINTS (bypass queue - for testing/debugging)
+// These will be migrated to TSOA in a future update
 // ============================================================================
 
 /**
@@ -544,100 +404,15 @@ app.post('/api/v1/sync/shopify/direct', authenticate, async (req: Request, res: 
 // SCHEDULER CONTROL ENDPOINTS
 // ============================================================================
 
-/**
- * Get scheduler status
- * GET /api/v1/scheduler/status
- */
-app.get('/api/v1/scheduler/status', (_req: Request, res: Response) => {
-  const nextRun = scheduler.getNextRun();
-  res.json({
-    success: true,
-    data: {
-      isActive: scheduler.isActive(),
-      schedule: config.cronSchedule,
-      timezone: config.timezone,
-      nextRun: nextRun?.toISOString(),
-    },
-  });
-});
-
-/**
- * Start the scheduler
- * POST /api/v1/scheduler/start
- */
-app.post('/api/v1/scheduler/start', (_req: Request, res: Response) => {
-  try {
-    scheduler.start();
-    res.json({
-      success: true,
-      message: 'Scheduler started',
-      data: {
-        schedule: config.cronSchedule,
-        timezone: config.timezone,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * Stop the scheduler
- * POST /api/v1/scheduler/stop
- */
-app.post('/api/v1/scheduler/stop', (_req: Request, res: Response) => {
-  scheduler.stop();
-  res.json({
-    success: true,
-    message: 'Scheduler stopped',
-  });
-});
-
-/**
- * Trigger immediate sync (manual trigger)
- * POST /api/v1/scheduler/trigger
- */
-app.post('/api/v1/scheduler/trigger', async (_req: Request, res: Response) => {
-  try {
-    await scheduler.triggerNow();
-    res.json({
-      success: true,
-      message: 'Manual sync triggered',
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
 // ============================================================================
-// NOTIFICATION TEST ENDPOINTS
+// SCHEDULER CONTROL ENDPOINTS - NOW HANDLED BY TSOA SchedulerController
+// These legacy endpoints are removed - use TSOA-generated routes instead
 // ============================================================================
 
-/**
- * Test notifications
- * POST /api/v1/notifications/test
- */
-app.post('/api/v1/notifications/test', async (_req: Request, res: Response) => {
-  try {
-    const results = await notifier.testNotifications();
-    res.json({
-      success: true,
-      data: results,
-      message: `Telegram: ${results.telegram ? 'sent' : 'failed/disabled'}, Email: ${results.email ? 'sent' : 'failed/disabled'}`,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
+// ============================================================================
+// NOTIFICATION TEST ENDPOINTS - NOW HANDLED BY TSOA NotificationController
+// These legacy endpoints are removed - use TSOA-generated routes instead
+// ============================================================================
 
 // ============================================================================
 // LEGACY ENDPOINTS (backward compatibility)
