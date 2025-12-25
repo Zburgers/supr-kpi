@@ -1,6 +1,6 @@
 /**
  * Job Scheduler
- * Handles cron-based job scheduling
+ * Handles cron-based job scheduling with support for both global and user-specific schedules
  *
  * @module lib/scheduler
  */
@@ -9,62 +9,46 @@ import cron from 'node-cron';
 import { config } from '../config/index.js';
 import { logger } from './logger.js';
 import { etlQueue } from './queue.js';
+import { enhancedScheduler } from './enhanced-scheduler.js';
 
 /**
  * Scheduler class
  * Manages cron jobs for automated ETL runs
+ *
+ * Note: This class now acts as a facade that delegates to the enhanced scheduler
+ * for user-specific scheduling, while maintaining backward compatibility
  */
 class Scheduler {
-  private cronJob: cron.ScheduledTask | null = null;
   private isRunning = false;
 
   /**
    * Start the scheduler
    */
-  start(): void {
+  async start(): Promise<void> {
     if (this.isRunning) {
       logger.warn('Scheduler already running');
       return;
     }
 
-    const schedule = config.cronSchedule;
-    const timezone = config.timezone;
-
-    if (!cron.validate(schedule)) {
-      logger.error('Invalid cron schedule', { schedule });
-      throw new Error(`Invalid cron schedule: ${schedule}`);
+    try {
+      // Start the enhanced scheduler which handles user-specific schedules
+      await enhancedScheduler.start();
+      this.isRunning = true;
+      logger.info('Scheduler started with enhanced user-specific scheduling');
+    } catch (error) {
+      logger.error('Failed to start scheduler', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
-
-    this.cronJob = cron.schedule(
-      schedule,
-      async () => {
-        logger.info('Scheduled sync triggered', { schedule, timezone });
-        try {
-          await etlQueue.enqueueAllSyncs();
-        } catch (error) {
-          logger.error('Failed to enqueue scheduled syncs', {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-      {
-        scheduled: true,
-        timezone,
-      }
-    );
-
-    this.isRunning = true;
-    logger.info('Scheduler started', { schedule, timezone });
   }
 
   /**
    * Stop the scheduler
    */
   stop(): void {
-    if (this.cronJob) {
-      this.cronJob.stop();
-      this.cronJob = null;
-    }
+    // Stop the enhanced scheduler
+    enhancedScheduler.stop();
     this.isRunning = false;
     logger.info('Scheduler stopped');
   }
@@ -73,43 +57,63 @@ class Scheduler {
    * Check if scheduler is running
    */
   isActive(): boolean {
-    return this.isRunning;
+    return this.isRunning && enhancedScheduler.isActive();
   }
 
   /**
-   * Get next scheduled run time
+   * Get next scheduled run time (placeholder - actual next runs are tracked per user in DB)
    */
   getNextRun(): Date | null {
-    if (!this.isRunning) return null;
-
-    // Parse cron and calculate next run
-    // This is a simplified implementation
-    const parts = config.cronSchedule.split(' ');
-    if (parts.length !== 5) return null;
-
-    const [minute, hour] = parts;
-    const now = new Date();
-    const next = new Date(now);
-
-    next.setHours(parseInt(hour, 10) || 0);
-    next.setMinutes(parseInt(minute, 10) || 0);
-    next.setSeconds(0);
-    next.setMilliseconds(0);
-
-    // If time has passed today, move to tomorrow
-    if (next <= now) {
-      next.setDate(next.getDate() + 1);
-    }
-
-    return next;
+    // This method is kept for backward compatibility
+    // Next run times are now tracked per user and service in the database
+    return null;
   }
 
   /**
    * Manually trigger a sync run
    */
   async triggerNow(): Promise<void> {
-    logger.info('Manual sync triggered');
+    logger.info('Manual sync triggered - this will trigger all configured services for all users');
+
+    // For backward compatibility, trigger all syncs for all users
+    // In a production system, this might be implemented differently
     await etlQueue.enqueueAllSyncs();
+  }
+
+  /**
+   * Manually trigger a sync for a specific user and service
+   */
+  async triggerUserSync(userId: number, service: 'meta' | 'ga4' | 'shopify'): Promise<void> {
+    logger.info('Manual sync triggered for user and service', { userId, service });
+    await enhancedScheduler.triggerNow(userId, service);
+  }
+
+  /**
+   * Refresh schedules from database
+   */
+  async refreshSchedules(): Promise<void> {
+    await enhancedScheduler.refreshSchedules();
+  }
+
+  /**
+   * Update a specific schedule
+   */
+  async updateSchedule(scheduleId: number, userId: number, service: string, cronExpression: string, enabled: boolean, timezone: string): Promise<void> {
+    await enhancedScheduler.updateSchedule(scheduleId, userId, service, cronExpression, enabled, timezone);
+  }
+
+  /**
+   * Create a new schedule
+   */
+  async createSchedule(userId: number, service: string, cronExpression: string, enabled: boolean, timezone: string): Promise<any> {
+    return await enhancedScheduler.createSchedule(userId, service, cronExpression, enabled, timezone);
+  }
+
+  /**
+   * Get all schedules for a user
+   */
+  async getSchedulesForUser(userId: number): Promise<any[]> {
+    return await enhancedScheduler.getSchedulesForUser(userId);
   }
 }
 

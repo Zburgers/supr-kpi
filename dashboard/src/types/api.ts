@@ -78,10 +78,11 @@ export interface Sheet {
 }
 
 export interface Schedule {
-  id: string;
+  id: number; // Changed from string to number to match backend
   service: ServiceType;
   cron: string;
   enabled: boolean;
+  timezone: string; // Added timezone field
   last_run_at: string | null;
   next_run_at: string | null;
   created_at: string;
@@ -91,6 +92,7 @@ export interface Schedule {
 export interface ScheduleUpdateRequest {
   cron: string;
   enabled: boolean;
+  timezone?: string; // Added optional timezone field
 }
 
 export interface ActivityLogEntry {

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="pegasusGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="wingGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#a78bfa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c4b5fd;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Main body - stylized horse/pegasus -->
+  <path d="M20 48 L24 36 L32 32 L40 36 L44 48 L40 44 L32 46 L24 44 Z" fill="url(#pegasusGradient)"/>
+  <!-- Head -->
+  <path d="M40 36 L48 28 L52 24 L50 30 L46 34 L40 36 Z" fill="url(#pegasusGradient)"/>
+  <!-- Wing - upward soaring -->
+  <path d="M28 34 L16 20 L12 12 L20 16 L28 22 L32 28 L28 34 Z" fill="url(#wingGradient)"/>
+  <path d="M32 30 L24 18 L22 10 L28 14 L34 22 L36 28 L32 30 Z" fill="url(#wingGradient)" opacity="0.8"/>
+  <!-- Mane accent -->
+  <path d="M42 32 L44 26 L46 28 L44 34 Z" fill="url(#wingGradient)"/>
+  <!-- Sparkle effects -->
+  <circle cx="14" cy="14" r="2" fill="#fff" opacity="0.8"/>
+  <circle cx="10" cy="22" r="1.5" fill="#fff" opacity="0.6"/>
+  <circle cx="22" cy="12" r="1" fill="#fff" opacity="0.7"/>
+</svg>

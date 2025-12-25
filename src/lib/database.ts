@@ -255,6 +255,37 @@ export async function initializeSchema(): Promise<void> {
       $$ LANGUAGE plpgsql;
     `);
 
+    // Create job_schedules table - stores user-specific cron schedules
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS job_schedules (
+        id BIGSERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        service VARCHAR(50) NOT NULL CHECK (service IN ('meta', 'ga4', 'shopify')),
+        cron_expression VARCHAR(100) NOT NULL,  -- e.g., "0 2 * * *" = daily at 2 AM
+        enabled BOOLEAN DEFAULT false,
+        timezone VARCHAR(50) DEFAULT 'Asia/Kolkata', -- User's timezone
+        last_run_at TIMESTAMP,
+        next_run_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_job_schedules_user_id ON job_schedules(user_id);
+      CREATE INDEX IF NOT EXISTS idx_job_schedules_service ON job_schedules(service);
+      CREATE INDEX IF NOT EXISTS idx_job_schedules_enabled ON job_schedules(enabled);
+      CREATE INDEX IF NOT EXISTS idx_job_schedules_next_run ON job_schedules(next_run_at);
+    `);
+
+    // Enable RLS on job_schedules table
+    await client.query(`
+      ALTER TABLE job_schedules ENABLE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS job_schedules_user_isolation ON job_schedules;
+      CREATE POLICY job_schedules_user_isolation ON job_schedules
+        USING (user_id = current_setting('app.current_user_id')::INTEGER)
+        WITH CHECK (user_id = current_setting('app.current_user_id')::INTEGER);
+    `);
+
     await client.query('COMMIT');
     logger.info('Database schema initialized');
   } catch (error) {

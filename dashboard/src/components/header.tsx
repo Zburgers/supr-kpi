@@ -15,8 +15,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Badge } from '@/components/ui/badge'
 import { useTheme } from '@/components/theme-provider'
-import { RefreshCw, Moon, Sun, Monitor, Zap, Settings, ChevronRight } from 'lucide-react'
+import { getDateRange, formatDateRange } from '@/lib/utils'
+import { RefreshCw, Moon, Sun, Monitor, Settings, ChevronRight, Calendar } from 'lucide-react'
 import type { DateRange } from '@/types'
 
 interface HeaderProps {
@@ -27,6 +29,7 @@ interface HeaderProps {
   lastUpdated: Date | null
   showNavigation?: boolean
   breadcrumbs?: Array<{ label: string; href?: string }>
+  dataDateRange?: { start: string; end: string } | null
 }
 
 export function Header({
@@ -37,6 +40,7 @@ export function Header({
   lastUpdated,
   showNavigation = true,
   breadcrumbs,
+  dataDateRange,
 }: HeaderProps) {
   const { theme, setTheme } = useTheme()
 
@@ -48,13 +52,18 @@ export function Header({
     })
   }
 
+  // Get the expected date range based on selection
+  const expectedRange = getDateRange(dateRange)
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="w-full max-w-7xl mx-auto flex h-16 items-center justify-between px-4 md:px-6 lg:px-8">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Zap className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold tracking-tight">KPI Command Center</h1>
+            <img src="/pegasus-icon.svg" alt="Pegasus" className="h-8 w-8" />
+            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
+              Pegasus
+            </h1>
           </div>
           
           {/* Breadcrumbs */}
@@ -85,18 +94,28 @@ export function Header({
         <div className="flex items-center gap-3">
           {showNavigation && (
             <>
-              {/* Date Range Selector */}
-              <Select value={dateRange} onValueChange={(v) => onDateRangeChange(v as DateRange)}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Select range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yesterday">Yesterday</SelectItem>
-                  <SelectItem value="7d">Last 7 Days</SelectItem>
-                  <SelectItem value="30d">Last 30 Days</SelectItem>
-                  <SelectItem value="mtd">Month to Date</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Date Range Selector with Visual Feedback */}
+              <div className="flex items-center gap-2">
+                <Select value={dateRange} onValueChange={(v) => onDateRangeChange(v as DateRange)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Select range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
+                    <SelectItem value="7d">Last 7 Days</SelectItem>
+                    <SelectItem value="30d">Last 30 Days</SelectItem>
+                    <SelectItem value="mtd">Month to Date</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Date Range Badge */}
+                {dataDateRange && (
+                  <Badge variant="outline" className="hidden lg:flex items-center gap-1 text-xs">
+                    <Calendar className="h-3 w-3" />
+                    {formatDateRange(dataDateRange.start, dataDateRange.end)}
+                  </Badge>
+                )}
+              </div>
 
               {/* Sync Button */}
               <Button onClick={onSync} disabled={isSyncing} className="gap-2">

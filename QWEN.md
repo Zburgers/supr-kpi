@@ -23,6 +23,55 @@ The application follows a modern full-stack architecture with:
 - **Authentication**: Clerk for user management
 - **Containerization**: Docker with multi-stage builds
 
+## Standardized Service Architecture
+
+The application now implements a standardized service architecture pattern across all data integration services (Meta, GA4, Shopify):
+
+### Core Architecture Pattern
+All services follow the same architectural pattern:
+
+#### 1. Service Structure
+```
+services/
+├── [service-name].service.ts     # Main service with credential management
+├── routes/
+│   └── [service-name].ts         # API routes with authentication
+```
+
+#### 2. Credential Management Pattern
+All services now use stored encrypted credentials instead of passing raw credentials:
+- Credentials are stored in the database and encrypted at rest
+- Services fetch and decrypt credentials at runtime using user context
+- Authentication is handled via JWT middleware
+- All queries are filtered by `user_id` for Row-Level Security (RLS)
+
+#### 3. UUID-Based ID Generation
+All services now use UUIDs instead of numeric IDs for better efficiency and uniqueness:
+- Uses `uuidv4()` for generating unique identifiers
+- Consistent across Meta, GA4, and Shopify services
+- Prevents conflicts and ensures global uniqueness
+
+### Implementation Components
+
+#### A. Main Service ([service-name].service.ts)
+- Implements credential fetching and decryption
+- Handles data fetching from external API
+- Implements parsing and normalization
+- Implements upsert logic with UUID generation
+- Implements main workflow orchestration
+
+#### B. API Routes ([service-name].ts)
+- All endpoints require JWT authentication
+- User context is validated via middleware
+- Credential access is filtered by user_id
+- Standardized sync endpoints using stored credentials
+
+### Security Considerations
+- All credentials stored encrypted in database
+- Decryption happens only at runtime
+- Credentials never exposed to client
+- Row-Level Security prevents cross-user access
+
 ## Key Features
 
 ### Core Functionality
@@ -107,9 +156,12 @@ The application requires several environment variables for different services:
 - `POST /api/append/:spreadsheetId/:sheetName` - Append row to sheet
 
 ### Data Source APIs
-- `POST /api/meta/fetch` - Fetch Meta insights
-- `POST /api/shopify/fetch` - Fetch Shopify metrics
+- `POST /api/meta/fetch` - Legacy Meta insights (deprecated)
+- `POST /api/meta/sync` - Fetch Meta insights using stored credentials
+- `POST /api/shopify/fetch` - Legacy Shopify metrics (deprecated)
+- `POST /api/shopify/sync` - Fetch Shopify metrics using stored credentials
 - `POST /api/google/fetch` - Fetch GA4 metrics
+- `POST /api/ga4/sync` - Fetch GA4 metrics using stored credentials
 
 ### Credential Management
 - `POST /api/credentials/save` - Save encrypted credential
@@ -126,6 +178,11 @@ The application requires several environment variables for different services:
 - `POST /api/v1/scheduler/stop` - Stop scheduler
 - `POST /api/v1/scheduler/trigger` - Manually trigger sync
 - `POST /api/v1/sync/all` - Sync all platforms
+
+### Sync Operations (Modern - Using Stored Credentials)
+- `POST /api/meta/sync` - Sync Meta data using stored credentials
+- `POST /api/ga4/sync` - Sync GA4 data using stored credentials
+- `POST /api/shopify/sync` - Sync Shopify data using stored credentials
 
 ## Development Conventions
 
@@ -176,6 +233,57 @@ Common issues and solutions:
 - Credential verification failures: Validate token formats and permissions
 
 **Note**: The old method of placing service account files in the project root (n8nworkflows-*.json) is deprecated. All credentials should now be managed through the credential management system.
+
+## Git Best Practices
+
+### Branching Strategy for Major Refactors
+When implementing major architectural changes or refactors, always follow this workflow:
+
+1. **Create a feature branch** from main:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Implement changes** on the feature branch with frequent commits:
+   ```bash
+   git add .
+   git commit -m "feat: your descriptive commit message"
+   ```
+
+3. **Test thoroughly** before merging to main
+
+4. **Open a pull request** from your feature branch to main for review
+
+5. **Merge to main** only after successful testing and review
+
+### Why This Approach?
+- **Prevents breaking production**: Avoid direct commits to main for major changes
+- **Enables code review**: Other team members can review changes before merging
+- **Facilitates rollback**: If issues arise, it's easier to revert changes from a branch
+- **Maintains stability**: Main branch stays stable and deployable
+
+### Example Workflow for Major Refactors:
+```bash
+# Create and switch to a new branch for major changes
+git checkout -b feature/standardized-service-architecture
+
+# Implement changes with regular commits
+git add .
+git commit -m "feat: create new meta service with credential management"
+git add .
+git commit -m "feat: update frontend to use new endpoints"
+
+# Test changes thoroughly
+
+# Push branch to remote
+git push origin feature/standardized-service-architecture
+
+# Open pull request in GitHub
+
+# After review and approval, merge via pull request
+```
+
+**Important**: Never commit directly to main for major architectural changes that could potentially break the system. Always use feature branches for safety.
 
 ## Security Notes
 

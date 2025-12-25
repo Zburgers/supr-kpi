@@ -222,8 +222,8 @@ export function SheetViewerDialog() {
           <Table className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[95vw] max-h-[90vh] w-full">
-        <DialogHeader>
+      <DialogContent className="!max-w-[95vw] !w-[95vw] !h-[90vh] !max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
             Sheet Viewer
@@ -233,9 +233,9 @@ export function SheetViewerDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-4">
+        <div className="flex-1 overflow-hidden px-6 py-4 flex flex-col gap-4">
           {/* Spreadsheet & Sheet Selection - Read-only, uses configured spreadsheet */}
-          <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex flex-wrap gap-4 items-end shrink-0">
             <div className="space-y-1.5 flex-1 min-w-[200px]">
               <label className="text-sm font-medium">Configured Spreadsheet</label>
               <Select
@@ -310,7 +310,7 @@ export function SheetViewerDialog() {
           </div>
 
           {/* Platform Tabs for Quick Switching */}
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full shrink-0">
             <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
               <TabsTrigger value="meta" className="flex items-center gap-2">
                 <span>📘</span> Meta
@@ -326,14 +326,14 @@ export function SheetViewerDialog() {
 
           {/* Error Display */}
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 shrink-0">
               <p className="text-sm text-red-500">{error}</p>
             </div>
           )}
 
           {/* Data Info */}
           {sheetData && (
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div className="flex items-center justify-between text-sm text-muted-foreground shrink-0">
               <div className="flex items-center gap-4">
                 <Badge variant="outline">
                   {sheetData.rowCount} rows
@@ -345,9 +345,9 @@ export function SheetViewerDialog() {
             </div>
           )}
 
-          {/* Sheet Data Table */}
-          <Card className="overflow-hidden">
-            <CardContent className="p-0">
+          {/* Sheet Data Table - takes remaining space */}
+          <Card className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <CardContent className="p-0 flex-1 overflow-hidden">
               {isLoadingData ? (
                 <div className="p-8 space-y-3">
                   {[...Array(5)].map((_, i) => (
@@ -355,17 +355,17 @@ export function SheetViewerDialog() {
                   ))}
                 </div>
               ) : sheetData && sheetData.headers.length > 0 ? (
-                <div className="overflow-x-auto max-h-[50vh]">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
+                <div className="overflow-auto h-full">
+                  <table className="w-full text-sm border-collapse">
+                    <thead className="sticky top-0 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/60 z-10">
                       <tr className="border-b">
-                        <th className="px-4 py-3 text-left font-semibold text-muted-foreground w-12">
+                        <th className="px-4 py-3 text-left font-semibold text-muted-foreground w-12 bg-muted/95">
                           #
                         </th>
                         {sheetData.headers.map((header, i) => (
                           <th
                             key={i}
-                            className="px-4 py-3 text-left font-semibold text-muted-foreground whitespace-nowrap"
+                            className="px-4 py-3 text-left font-semibold text-muted-foreground whitespace-nowrap bg-muted/95"
                           >
                             {header}
                           </th>

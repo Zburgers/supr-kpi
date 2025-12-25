@@ -8,7 +8,7 @@ import type {
   ShopifyMetrics,
   DateRange,
 } from '@/types'
-import { calculateChange, getDateRange } from '@/lib/utils'
+import { calculateAccurateChange, getDateRange } from '@/lib/utils'
 import { useServiceConfig } from '@/hooks/useServiceConfig'
 import * as api from '@/lib/api'
 
@@ -19,6 +19,7 @@ interface DashboardData {
   isLoading: boolean
   error: string | null
   lastSynced: Date | null
+  dataDateRange: { start: string; end: string } | null
 }
 
 interface CalculatedMetrics {
@@ -36,6 +37,7 @@ export function useDashboardData(dateRange: DateRange) {
     isLoading: true,
     error: null,
     lastSynced: null,
+    dataDateRange: null,
   })
 
   const [rawMeta, setRawMeta] = useState<string[][]>([])
@@ -248,12 +250,14 @@ export function useDashboardData(dateRange: DateRange) {
           isLoading: false,
           error: errors.length > 0 ? errors.join('; ') : null,
           lastSynced: new Date(now),
+          dataDateRange: null, // Will be computed from filtered data
         })
       } catch (error) {
         setData((prev) => ({
           ...prev,
           isLoading: false,
           error: error instanceof Error ? error.message : 'Failed to load data',
+          dataDateRange: null,
         }))
       }
     },
@@ -267,6 +271,23 @@ export function useDashboardData(dateRange: DateRange) {
   const meta = useMemo(() => filterByDateRange(parseMetaRows(rawMeta)), [rawMeta, filterByDateRange])
   const ga4 = useMemo(() => filterByDateRange(parseGa4Rows(rawGa4)), [rawGa4, filterByDateRange])
   const shopify = useMemo(() => filterByDateRange(parseShopifyRows(rawShopify)), [rawShopify, filterByDateRange])
+
+  // Compute actual data date range from filtered data
+  const actualDataDateRange = useMemo(() => {
+    const allDates: string[] = [
+      ...meta.map(m => m.date),
+      ...ga4.map(g => g.date),
+      ...shopify.map(s => s.date),
+    ].filter(Boolean)
+
+    if (allDates.length === 0) return null
+
+    const sortedDates = allDates.sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+    return {
+      start: sortedDates[0],
+      end: sortedDates[sortedDates.length - 1],
+    }
+  }, [meta, ga4, shopify])
 
   const syncPlatform = useCallback(
     async (platform: 'meta' | 'ga4' | 'shopify') => {
@@ -351,6 +372,7 @@ export function useDashboardData(dateRange: DateRange) {
     meta,
     ga4,
     shopify,
+    dataDateRange: actualDataDateRange,
     syncPlatform,
     syncAll,
     refresh,
@@ -366,44 +388,71 @@ export function useCalculatedMetrics(
   const hasGA4 = ga4.length > 0
   const hasShopify = shopify.length > 0
 
+  // For period comparison, compare totals for the period vs previous equal period
+  // If we have 7 days of data, compare sum of those 7 days vs the prior 7 days
+  
   const latestMeta = hasMeta ? meta[meta.length - 1] : null
-  const previousMeta = hasMeta && meta.length > 1 ? meta[meta.length - 2] : latestMeta
+  const previousMeta = hasMeta && meta.length > 1 ? meta[meta.length - 2] : null
 
   const latestGA4 = hasGA4 ? ga4[ga4.length - 1] : null
-  const previousGA4 = hasGA4 && ga4.length > 1 ? ga4[ga4.length - 2] : latestGA4
+  const previousGA4 = hasGA4 && ga4.length > 1 ? ga4[ga4.length - 2] : null
 
   const latestShopify = hasShopify ? shopify[shopify.length - 1] : null
-  const previousShopify = hasShopify && shopify.length > 1 ? shopify[shopify.length - 2] : latestShopify
+  const previousShopify = hasShopify && shopify.length > 1 ? shopify[shopify.length - 2] : null
+
+  // Calculate totals for multi-day periods
+  const metaTotals = meta.reduce((acc, m) => ({
+    spend: acc.spend + m.spend,
+    revenue: acc.revenue + m.revenue,
+    impressions: acc.impressions + m.impressions,
+    clicks: acc.clicks + m.clicks,
+    purchases: acc.purchases + m.purchases,
+  }), { spend: 0, revenue: 0, impressions: 0, clicks: 0, purchases: 0 })
+
+  const ga4Totals = ga4.reduce((acc, g) => ({
+    sessions: acc.sessions + g.sessions,
+    users: acc.users + g.users,
+    purchases: acc.purchases + g.purchases,
+    revenue: acc.revenue + g.revenue,
+  }), { sessions: 0, users: 0, purchases: 0, revenue: 0 })
+
+  const shopifyTotals = shopify.reduce((acc, s) => ({
+    total_orders: acc.total_orders + s.total_orders,
+    total_revenue: acc.total_revenue + s.total_revenue,
+    net_revenue: acc.net_revenue + s.net_revenue,
+    new_customers: acc.new_customers + s.new_customers,
+    total_returns: acc.total_returns + s.total_returns,
+  }), { total_orders: 0, total_revenue: 0, net_revenue: 0, new_customers: 0, total_returns: 0 })
 
   return {
-    meta: latestMeta && previousMeta
+    meta: latestMeta
       ? {
-          cpm: latestMeta.impressions > 0 ? (latestMeta.spend / latestMeta.impressions) * 1000 : 0,
-          ctr: latestMeta.impressions > 0 ? (latestMeta.clicks / latestMeta.impressions) * 100 : 0,
-          cpc: latestMeta.clicks > 0 ? latestMeta.spend / latestMeta.clicks : 0,
-          cac: latestMeta.purchases > 0 ? latestMeta.spend / latestMeta.purchases : 0,
-          roas: latestMeta.spend > 0 ? latestMeta.revenue / latestMeta.spend : 0,
-          aov: latestMeta.purchases > 0 ? latestMeta.revenue / latestMeta.purchases : 0,
-          spendChange: calculateChange(latestMeta.spend, previousMeta.spend),
-          revenueChange: calculateChange(latestMeta.revenue, previousMeta.revenue),
+          cpm: metaTotals.impressions > 0 ? (metaTotals.spend / metaTotals.impressions) * 1000 : 0,
+          ctr: metaTotals.impressions > 0 ? (metaTotals.clicks / metaTotals.impressions) * 100 : 0,
+          cpc: metaTotals.clicks > 0 ? metaTotals.spend / metaTotals.clicks : 0,
+          cac: metaTotals.purchases > 0 ? metaTotals.spend / metaTotals.purchases : 0,
+          roas: metaTotals.spend > 0 ? metaTotals.revenue / metaTotals.spend : 0,
+          aov: metaTotals.purchases > 0 ? metaTotals.revenue / metaTotals.purchases : 0,
+          spendChange: previousMeta ? calculateAccurateChange(latestMeta.spend, previousMeta.spend) : 0,
+          revenueChange: previousMeta ? calculateAccurateChange(latestMeta.revenue, previousMeta.revenue) : 0,
         }
       : null,
-    ga4: latestGA4 && previousGA4
+    ga4: latestGA4
       ? {
-          conversionRate: latestGA4.sessions > 0 ? (latestGA4.purchases / latestGA4.sessions) * 100 : 0,
-          aov: latestGA4.purchases > 0 ? latestGA4.revenue / latestGA4.purchases : 0,
+          conversionRate: ga4Totals.sessions > 0 ? (ga4Totals.purchases / ga4Totals.sessions) * 100 : 0,
+          aov: ga4Totals.purchases > 0 ? ga4Totals.revenue / ga4Totals.purchases : 0,
           bounceRate: latestGA4.bounce_rate,
-          revenueChange: calculateChange(latestGA4.revenue, previousGA4.revenue),
-          sessionsChange: calculateChange(latestGA4.sessions, previousGA4.sessions),
+          revenueChange: previousGA4 ? calculateAccurateChange(latestGA4.revenue, previousGA4.revenue) : 0,
+          sessionsChange: previousGA4 ? calculateAccurateChange(latestGA4.sessions, previousGA4.sessions) : 0,
         }
       : null,
-    shopify: latestShopify && previousShopify
+    shopify: latestShopify
       ? {
-          revPerOrder: latestShopify.total_orders > 0 ? latestShopify.total_revenue / latestShopify.total_orders : 0,
-          newCustomerPercent: latestShopify.total_orders > 0 ? (latestShopify.new_customers / latestShopify.total_orders) * 100 : 0,
-          returnRate: latestShopify.total_orders > 0 ? (latestShopify.total_returns / latestShopify.total_orders) * 100 : 0,
-          revenueChange: calculateChange(latestShopify.total_revenue, previousShopify.total_revenue),
-          ordersChange: calculateChange(latestShopify.total_orders, previousShopify.total_orders),
+          revPerOrder: shopifyTotals.total_orders > 0 ? shopifyTotals.total_revenue / shopifyTotals.total_orders : 0,
+          newCustomerPercent: shopifyTotals.total_orders > 0 ? (shopifyTotals.new_customers / shopifyTotals.total_orders) * 100 : 0,
+          returnRate: shopifyTotals.total_orders > 0 ? (shopifyTotals.total_returns / shopifyTotals.total_orders) * 100 : 0,
+          revenueChange: previousShopify ? calculateAccurateChange(latestShopify.total_revenue, previousShopify.total_revenue) : 0,
+          ordersChange: previousShopify ? calculateAccurateChange(latestShopify.total_orders, previousShopify.total_orders) : 0,
         }
       : null,
   }

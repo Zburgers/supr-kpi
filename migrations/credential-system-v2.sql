@@ -187,6 +187,40 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
+-- JOB SCHEDULES TABLE
+-- ============================================================================
+-- Stores user-specific cron schedules for automated sync jobs
+
+CREATE TABLE IF NOT EXISTS job_schedules (
+  id BIGSERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  service VARCHAR(50) NOT NULL CHECK (service IN ('meta', 'ga4', 'shopify')),
+  cron_expression VARCHAR(100) NOT NULL,  -- e.g., "0 2 * * *" = daily at 2 AM
+  enabled BOOLEAN DEFAULT false,
+  timezone VARCHAR(50) DEFAULT 'Asia/Kolkata', -- User's timezone
+  last_run_at TIMESTAMP,
+  next_run_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_schedules_user_id ON job_schedules(user_id);
+CREATE INDEX IF NOT EXISTS idx_job_schedules_service ON job_schedules(service);
+CREATE INDEX IF NOT EXISTS idx_job_schedules_enabled ON job_schedules(enabled);
+CREATE INDEX IF NOT EXISTS idx_job_schedules_next_run ON job_schedules(next_run_at);
+
+-- Enable Row-Level Security on job_schedules table
+ALTER TABLE job_schedules ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policy if it exists
+DROP POLICY IF EXISTS job_schedules_user_isolation ON job_schedules;
+
+-- Create RLS policy
+CREATE POLICY job_schedules_user_isolation ON job_schedules
+  USING (user_id = current_setting('app.current_user_id')::INTEGER)
+  WITH CHECK (user_id = current_setting('app.current_user_id')::INTEGER);
+
+-- ============================================================================
 -- HELPER FUNCTION: Get active services for user
 -- ============================================================================
 -- Returns configured services with their credentials
@@ -211,6 +245,41 @@ BEGIN
   LEFT JOIN credentials c ON sc.credential_id = c.id
   WHERE sc.user_id = user_id
   ORDER BY sc.service;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- HELPER FUNCTION: Get user schedules
+-- ============================================================================
+-- Returns configured schedules for a user
+
+CREATE OR REPLACE FUNCTION get_user_schedules(user_id INTEGER)
+RETURNS TABLE (
+  id BIGINT,
+  service VARCHAR,
+  cron_expression VARCHAR,
+  enabled BOOLEAN,
+  timezone VARCHAR,
+  last_run_at TIMESTAMP,
+  next_run_at TIMESTAMP,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    js.id,
+    js.service::VARCHAR,
+    js.cron_expression::VARCHAR,
+    js.enabled,
+    js.timezone::VARCHAR,
+    js.last_run_at,
+    js.next_run_at,
+    js.created_at,
+    js.updated_at
+  FROM job_schedules js
+  WHERE js.user_id = user_id
+  ORDER BY js.service;
 END;
 $$ LANGUAGE plpgsql;
 

@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useDashboardData, useCalculatedMetrics } from '@/hooks/use-dashboard-data'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatCompact, getDateRangeLabel } from '@/lib/utils'
 import type { DateRange } from '@/types'
 import {
   DollarSign,
@@ -21,6 +22,9 @@ import {
   BarChart3,
   Percent,
   RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Info,
 } from 'lucide-react'
 
 export function Dashboard() {
@@ -32,6 +36,7 @@ export function Dashboard() {
     isLoading,
     error,
     lastSynced,
+    dataDateRange,
     syncAll,
   } = useDashboardData(dateRange)
 
@@ -42,11 +47,17 @@ export function Dashboard() {
   const latestGA4 = ga4[ga4.length - 1]
   const latestShopify = shopify[shopify.length - 1]
 
-  // Calculate totals for summary cards using raw data
-  const totalRevenue = latestShopify?.total_revenue || 0
-  const totalSpend = latestMeta?.spend || 0
-  const totalOrders = latestShopify?.total_orders || 0
+  // Calculate totals for summary cards (sum all data in range for aggregate view)
+  const totalRevenue = shopify.reduce((sum, s) => sum + s.total_revenue, 0)
+  const totalSpend = meta.reduce((sum, m) => sum + m.spend, 0)
+  const totalOrders = shopify.reduce((sum, s) => sum + s.total_orders, 0)
   const blendedROAS = totalSpend > 0 ? totalRevenue / totalSpend : 0
+
+  // Data availability indicators
+  const hasMetaData = meta.length > 0
+  const hasGA4Data = ga4.length > 0
+  const hasShopifyData = shopify.length > 0
+  const hasAnyData = hasMetaData || hasGA4Data || hasShopifyData
 
   // Prepare chart data
   const combinedChartData = useMemo(() => {
@@ -92,34 +103,41 @@ export function Dashboard() {
         onSync={syncAll}
         isSyncing={isLoading}
         lastUpdated={lastSynced}
+        dataDateRange={dataDateRange}
       />
 
       <main className="w-full max-w-7xl mx-auto px-4 py-6 md:px-6 lg:px-8 lg:py-8">
         {/* Error Display */}
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-            <h3 className="font-semibold text-red-500 mb-2">Error</h3>
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error Loading Data</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        {/* Overview Section */}
+        {/* No Data Info */}
+        {!isLoading && !error && !hasAnyData && (
+          <Alert className="mb-6">
+            <Info className="h-4 w-4" />
+            <AlertTitle>No Data Available</AlertTitle>
+            <AlertDescription>
+              No data found for {getDateRangeLabel(dateRange)}. Make sure your Google Sheets are configured and contain data for the selected date range.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Business Overview Section */}
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
+              <h2 className="text-2xl font-bold tracking-tight">Business Overview</h2>
               <p className="text-muted-foreground">
-                Your business performance at a glance
+                Your key performance metrics across all platforms
               </p>
             </div>
-            <Badge variant="outline" className="text-xs">
-              {dateRange === 'yesterday'
-                ? 'Yesterday'
-                : dateRange === '7d'
-                ? 'Last 7 Days'
-                : dateRange === '30d'
-                ? 'Last 30 Days'
-                : 'Month to Date'}
+            <Badge variant="outline" className="text-xs font-medium">
+              {getDateRangeLabel(dateRange)}
             </Badge>
           </div>
 
@@ -539,11 +557,19 @@ export function Dashboard() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t py-4 mt-8">
+      <footer className="border-t py-6 mt-8">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-          <p className="text-center text-sm text-muted-foreground">
-            KPI Data Command Center • Built with ⚡ for SUPR
-          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <img src="/pegasus-icon.svg" alt="Pegasus" className="h-5 w-5 opacity-60" />
+              <span className="text-sm text-muted-foreground">
+                Pegasus Analytics Platform
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Unified KPI tracking for modern e-commerce
+            </p>
+          </div>
         </div>
       </footer>
     </div>

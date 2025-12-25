@@ -37,57 +37,126 @@ export async function getCurrentToken(): Promise<string | null> {
 }
 
 /**
+ * Error codes for better error handling
+ */
+export const ErrorCodes = {
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  AUTH_ERROR: 'AUTH_ERROR',
+  NOT_FOUND: 'NOT_FOUND',
+  RATE_LIMITED: 'RATE_LIMITED',
+  SERVER_ERROR: 'SERVER_ERROR',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  UNKNOWN: 'UNKNOWN',
+} as const
+
+export type ErrorCode = typeof ErrorCodes[keyof typeof ErrorCodes]
+
+/**
+ * Parse error response and return user-friendly message
+ */
+function parseErrorResponse(status: number, data?: { error?: string; message?: string }): { 
+  code: ErrorCode
+  message: string 
+} {
+  const errorMessage = data?.error || data?.message || ''
+  
+  switch (status) {
+    case 401:
+    case 403:
+      return { code: ErrorCodes.AUTH_ERROR, message: 'Authentication required. Please sign in again.' }
+    case 404:
+      return { code: ErrorCodes.NOT_FOUND, message: errorMessage || 'The requested resource was not found.' }
+    case 429:
+      return { code: ErrorCodes.RATE_LIMITED, message: 'Too many requests. Please wait a moment and try again.' }
+    case 400:
+      return { code: ErrorCodes.VALIDATION_ERROR, message: errorMessage || 'Invalid request. Please check your input.' }
+    case 500:
+    case 502:
+    case 503:
+    case 504:
+      return { code: ErrorCodes.SERVER_ERROR, message: 'Server error. Please try again later.' }
+    default:
+      return { code: ErrorCodes.UNKNOWN, message: errorMessage || `Request failed (${status})` }
+  }
+}
+
+/**
  * Core fetch wrapper with authentication and error handling
  */
 export async function fetchApi<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit & { retries?: number }
 ): Promise<ApiResponse<T>> {
-  try {
-    const token = getAuthToken ? await getAuthToken() : null
+  const maxRetries = options?.retries ?? 2
+  let lastError: string = 'Unknown error'
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const token = getAuthToken ? await getAuthToken() : null
 
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    }
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      }
 
-    if (token) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
-    }
+      if (token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+      }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-    })
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
 
-    // Handle non-JSON responses
-    const contentType = response.headers.get('content-type')
-    if (!contentType?.includes('application/json')) {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      // Handle non-JSON responses
+      const contentType = response.headers.get('content-type')
+      if (!contentType?.includes('application/json')) {
+        if (!response.ok) {
+          const { code, message } = parseErrorResponse(response.status)
+          return { success: false, error: message, errorCode: code }
+        }
+        // For successful non-JSON responses
+        return { success: true, data: undefined as T }
+      }
+
+      const data = await response.json()
+
+      // Normalize response format
       if (!response.ok) {
-        return {
-          success: false,
-          error: `Server error: ${response.status} ${response.statusText}`,
+        const { code, message } = parseErrorResponse(response.status, data)
+        return { success: false, error: message, errorCode: code, ...data }
+      }
+
+      return data
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          lastError = 'Request timed out. Please check your connection and try again.'
+        } else if (error.message.includes('fetch')) {
+          lastError = 'Network error. Please check your internet connection.'
+        } else {
+          lastError = error.message
         }
       }
-    }
-
-    const data = await response.json()
-
-    // Normalize response format
-    if (!response.ok && !data.error) {
-      return {
-        success: false,
-        error: data.message || `Request failed with status ${response.status}`,
-        ...data,
+      
+      // Only retry on network errors, not on abort
+      if (attempt < maxRetries && !(error instanceof Error && error.name === 'AbortError')) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))) // Exponential backoff
+        continue
       }
     }
+  }
 
-    return data
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
+  return {
+    success: false,
+    error: lastError,
+    errorCode: ErrorCodes.NETWORK_ERROR,
   }
 }
 
@@ -434,11 +503,15 @@ export async function syncAllServices(): Promise<ApiResponse<{
 // ============================================================================
 
 export interface Schedule {
-  service: string
-  cron: string
-  enabled: boolean
-  last_run_at?: string
-  next_run_at?: string
+  id: number;
+  service: string;
+  cron: string;
+  enabled: boolean;
+  timezone: string;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export async function listSchedules(): Promise<ApiResponse<Schedule[]>> {
@@ -446,8 +519,9 @@ export async function listSchedules(): Promise<ApiResponse<Schedule[]>> {
 }
 
 export async function updateSchedule(service: string, data: {
-  cron?: string
-  enabled?: boolean
+  cron: string;
+  enabled: boolean;
+  timezone?: string;
 }): Promise<ApiResponse<Schedule>> {
   return fetchApi<Schedule>(`/schedules/${service}`, {
     method: 'PUT',

@@ -356,6 +356,7 @@ export function Settings() {
               service={editingSchedule}
               currentCron={schedules.find((s) => s.service === editingSchedule)?.cron || '0 2 * * *'}
               enabled={schedules.find((s) => s.service === editingSchedule)?.enabled || false}
+              timezone={schedules.find((s) => s.service === editingSchedule)?.timezone || 'Asia/Kolkata'}
               onSave={() => {
                 setEditingSchedule(null);
                 loadData();
