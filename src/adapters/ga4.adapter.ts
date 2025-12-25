@@ -5,7 +5,7 @@
  * @module adapters/ga4
  */
 
-import { BaseAdapter, SyncOptions, SyncResult, getYesterdayDate, toNumber } from './base.adapter.js';
+import { BaseAdapter, SyncOptions, SyncResult, getYesterdayDate, toNumber, validateHeaderSchema, isSheetEmpty } from './base.adapter.js';
 import { Ga4DailyMetric, IsoDate } from '../types/etl.js';
 import { sheetsService } from '../services/sheets.js';
 import { logger, events } from '../lib/logger.js';
@@ -197,6 +197,59 @@ class Ga4Adapter implements BaseAdapter<Ga4DailyMetric, Ga4SyncOptions> {
     // Get header row
     const headerValues = await sheetsService.getValues(spreadsheetId, sheetName, 'A1:Z1');
     const headerRow = (headerValues[0] || []) as (string | number | null)[];
+    
+    // Check if sheet is empty and needs header initialization
+    if (isSheetEmpty(headerRow)) {
+      logger.info('Sheet is empty, creating header row for GA4 schema', {
+        spreadsheetId,
+        sheetName
+      });
+      
+      // Create header row with expected columns
+      const headers = this.getColumnHeaders();
+      await sheetsService.appendRow(spreadsheetId, sheetName, headers);
+      
+      // Add the data row as first data row (row 2)
+      const row = this.toSheetRow(metrics);
+      const appendSuccess = await sheetsService.appendRow(spreadsheetId, sheetName, row);
+      
+      if (appendSuccess) {
+        return {
+          success: true,
+          mode: 'append',
+          rowNumber: 2,
+          id: metrics.id ?? 1,
+          metrics: { ...metrics, id: metrics.id ?? 1 },
+        };
+      }
+      
+      return { success: false, error: 'Failed to initialize sheet and append data' };
+    }
+
+    // Validate schema matches expected columns
+    const expectedColumns = this.getColumnHeaders();
+    const schemaValidation = validateHeaderSchema(headerRow, expectedColumns);
+    
+    if (!schemaValidation.valid) {
+      if (schemaValidation.detectedSchema && schemaValidation.detectedSchema !== 'ga4') {
+        const errorMsg = `Schema mismatch: Sheet contains ${schemaValidation.detectedSchema?.toUpperCase() || 'unknown'} data but expecting GA4 data. Missing columns: ${schemaValidation.missingColumns.join(', ')}. Please check your sheet to avoid overwriting data.`;
+        logger.error('Schema validation failed', { 
+          service: 'ga4',
+          detectedSchema: schemaValidation.detectedSchema,
+          missingColumns: schemaValidation.missingColumns
+        });
+        return { success: false, error: errorMsg };
+      }
+      
+      if (schemaValidation.mismatchWarning) {
+        logger.warn('Potential schema mismatch detected', {
+          service: 'ga4',
+          warning: schemaValidation.mismatchWarning
+        });
+        return { success: false, error: schemaValidation.mismatchWarning };
+      }
+    }
+    
     const normalizedHeader = headerRow.map((h) =>
       typeof h === 'string' ? h.trim().toLowerCase() : ''
     );

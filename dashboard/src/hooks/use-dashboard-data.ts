@@ -11,6 +11,7 @@ import type {
 import { calculateAccurateChange, getDateRange } from '@/lib/utils'
 import { useServiceConfig } from '@/hooks/useServiceConfig'
 import * as api from '@/lib/api'
+import { checkSheetHeaders, createSheetHeaders } from '@/lib/sheet-validation'
 
 interface DashboardData {
   meta: MetaRawDaily[]
@@ -327,36 +328,70 @@ export function useDashboardData(dateRange: DateRange) {
       setData((prev) => ({ ...prev, isLoading: true }))
 
       try {
-        // For GA4, Shopify, and Meta, we need to get the credentialId from service configuration
-        let result;
+        // Get the credential ID for this platform
+        let credentialId: string | undefined
         if (platform === 'ga4') {
-          const ga4CredentialId = serviceConfig.ga4.credentialId;
-          if (!ga4CredentialId) {
-            return { success: false, error: 'GA4 credential ID not found. Please reconfigure GA4 in Settings.' };
-          }
-
-          // Use modern syncService which uses stored credentials from backend
-          result = await api.syncService(platform, { credentialId: ga4CredentialId })
+          credentialId = serviceConfig.ga4.credentialId
         } else if (platform === 'shopify') {
-          const shopifyCredentialId = serviceConfig.shopify.credentialId;
-          if (!shopifyCredentialId) {
-            return { success: false, error: 'Shopify credential ID not found. Please reconfigure Shopify in Settings.' };
-          }
-
-          // Use modern syncService which uses stored credentials from backend
-          result = await api.syncService(platform, { credentialId: shopifyCredentialId })
+          credentialId = serviceConfig.shopify.credentialId
         } else if (platform === 'meta') {
-          const metaCredentialId = serviceConfig.meta.credentialId;
-          if (!metaCredentialId) {
-            return { success: false, error: 'Meta credential ID not found. Please reconfigure Meta in Settings.' };
+          credentialId = serviceConfig.meta.credentialId
+        }
+
+        if (!credentialId) {
+          return { 
+            success: false, 
+            error: `${platform.toUpperCase()} credential ID not found. Please reconfigure in Settings.` 
+          }
+        }
+
+        // Before syncing, validate sheet headers
+        if (sheetConfig?.spreadsheetId) {
+          const sheetName = platform === 'meta' 
+            ? sheetConfig.metaSheetName 
+            : platform === 'ga4' 
+            ? sheetConfig.ga4SheetName 
+            : sheetConfig.shopifySheetName
+
+          const validation = await checkSheetHeaders(
+            platform,
+            sheetConfig.spreadsheetId,
+            sheetName,
+            googleSheetsCredentialId || credentialId
+          )
+
+          // If headers are missing, create them first
+          if (validation.requiresHeaderCreation) {
+            const headerCreationResult = await createSheetHeaders(
+              platform,
+              sheetConfig.spreadsheetId,
+              sheetName,
+              googleSheetsCredentialId || credentialId
+            )
+
+            if (!headerCreationResult.success) {
+              return { 
+                success: false, 
+                error: `Failed to create headers: ${headerCreationResult.error}` 
+              }
+            }
           }
 
-          // Use modern syncService which uses stored credentials from backend
-          result = await api.syncService(platform, { credentialId: metaCredentialId })
-        } else {
-          // Use modern syncService which uses stored credentials from backend
-          result = await api.syncService(platform)
+          // If headers don't match and it's not just empty, refuse to sync
+          if (!validation.valid && !validation.requiresHeaderCreation) {
+            return { 
+              success: false, 
+              error: validation.message 
+            }
+          }
+
+          if (import.meta.env.DEV && validation.message) {
+            console.log(`📋 Sheet Validation [${platform}]:`, validation)
+          }
         }
+
+        // Proceed with sync
+        const result = await api.syncService(platform, { credentialId })
 
         if (result.success) {
           cacheRef.current = null
@@ -366,15 +401,16 @@ export function useDashboardData(dateRange: DateRange) {
         }
         return result
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Sync failed'
         setData((prev) => ({
           ...prev,
           isLoading: false,
-          error: error instanceof Error ? error.message : 'Sync failed',
+          error: errorMessage,
         }))
-        return { success: false, error: 'Sync failed' }
+        return { success: false, error: errorMessage }
       }
     },
-    [isConfigured, serviceConfig, fetchData]
+    [isConfigured, serviceConfig, fetchData, sheetConfig, googleSheetsCredentialId]
   )
 
   const syncAll = useCallback(async () => {

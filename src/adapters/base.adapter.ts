@@ -88,3 +88,77 @@ export function formatDateForApi(date: IsoDate, format: 'iso' | 'yyyymmdd' = 'is
   }
   return date;
 }
+
+/**
+ * Validate header row matches expected schema
+ * Detects schema mismatches and missing columns
+ * 
+ * @param headerRow - Raw header row from sheet
+ * @param expectedColumns - Expected column names
+ * @returns { valid: boolean, missingColumns: string[], mismatchWarning: string | null }
+ */
+export function validateHeaderSchema(
+  headerRow: (string | number | null)[] | undefined,
+  expectedColumns: string[]
+): { 
+  valid: boolean
+  missingColumns: string[]
+  mismatchWarning: string | null 
+  detectedSchema: string | null
+} {
+  // Empty header = no schema initialized
+  if (!headerRow || headerRow.length === 0) {
+    return {
+      valid: false,
+      missingColumns: expectedColumns,
+      mismatchWarning: null,
+      detectedSchema: null,
+    };
+  }
+
+  // Normalize detected headers
+  const normalizedDetected = headerRow
+    .map((h) => (typeof h === 'string' ? h.trim().toLowerCase() : ''))
+    .filter((h) => h.length > 0);
+
+  const expectedNormalized = expectedColumns.map((c) => c.toLowerCase());
+
+  // Check for missing columns
+  const missingColumns = expectedNormalized.filter((col) => !normalizedDetected.includes(col));
+
+  // Detect which service this sheet might belong to
+  let detectedSchema: string | null = null;
+  const metaColumns = ['spend', 'reach', 'impressions', 'clicks', 'landing_page_views'];
+  const ga4Columns = ['sessions', 'users', 'bounce_rate'];
+  const shopifyColumns = ['total_orders', 'total_revenue', 'net_revenue', 'repeat_customers'];
+
+  const metaMatch = metaColumns.filter((col) => normalizedDetected.includes(col.toLowerCase())).length;
+  const ga4Match = ga4Columns.filter((col) => normalizedDetected.includes(col.toLowerCase())).length;
+  const shopifyMatch = shopifyColumns.filter((col) => normalizedDetected.includes(col.toLowerCase())).length;
+
+  if (metaMatch >= 2) detectedSchema = 'meta';
+  else if (ga4Match >= 2) detectedSchema = 'ga4';
+  else if (shopifyMatch >= 2) detectedSchema = 'shopify';
+
+  // If columns detected don't match our schema, warn about potential overwrite
+  let mismatchWarning: string | null = null;
+  if (detectedSchema && detectedSchema !== 'unknown' && missingColumns.length > 0) {
+    mismatchWarning = `This sheet appears to contain ${detectedSchema.toUpperCase()} data but is missing columns: ${missingColumns.join(', ')}. Please verify you're writing to the correct sheet to avoid data corruption.`;
+  }
+
+  const valid = missingColumns.length === 0;
+
+  return {
+    valid,
+    missingColumns,
+    mismatchWarning,
+    detectedSchema,
+  };
+}
+
+/**
+ * Check if sheet is completely empty (no headers, no data)
+ */
+export function isSheetEmpty(headerRow: (string | number | null)[] | undefined): boolean {
+  return !headerRow || headerRow.length === 0 || headerRow.every((h) => !h);
+}
