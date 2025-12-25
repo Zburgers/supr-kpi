@@ -1,13 +1,16 @@
 /**
  * Discord Notifications API Routes
  * 
+ * Provides endpoints for sending Discord webhook notifications
+ * Used for observability and alerting
+ * 
  * @module routes/discord-notifications
  */
 
 import express, { Request, Response } from 'express';
 import { notifier } from '../lib/notifier.js';
 import { logger } from '../lib/logger.js';
-import { authenticateUser } from '../middleware/auth.js';
+import { authenticate, requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -36,61 +39,31 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Notification sent successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Notification sent to Discord successfully"
  *       400:
  *         description: Bad request - missing required fields
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   type: string
- *                   example: "Message is required"
  *       500:
  *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   type: string
- *                   example: "Failed to send notification"
  */
-router.post('/send', authenticateUser, async (req: Request, res: Response) => {
+router.post('/send', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!requireAuth(req, res)) return;
+
   try {
     const { message } = req.body;
 
     if (!message) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Message is required'
       });
+      return;
     }
 
     const success = await notifier.sendDiscord(message);
 
     if (success) {
       logger.info('Discord notification sent successfully', {
-        userId: req.auth?.userId,
-        message: message.substring(0, 100) + (message.length > 100 ? '...' : '') // Truncate long messages
+        userId: req.user?.userId,
+        message: message.substring(0, 100) + (message.length > 100 ? '...' : '')
       });
 
       res.json({
@@ -98,11 +71,7 @@ router.post('/send', authenticateUser, async (req: Request, res: Response) => {
         message: 'Notification sent to Discord successfully'
       });
     } else {
-      logger.error('Failed to send Discord notification', {
-        userId: req.auth?.userId,
-        error: 'Discord webhook failed'
-      });
-
+      logger.error('Failed to send Discord notification');
       res.status(500).json({
         success: false,
         error: 'Failed to send notification to Discord'
@@ -110,7 +79,6 @@ router.post('/send', authenticateUser, async (req: Request, res: Response) => {
     }
   } catch (error) {
     logger.error('Error sending Discord notification', {
-      userId: req.auth?.userId,
       error: error instanceof Error ? error.message : String(error)
     });
 
@@ -126,75 +94,54 @@ router.post('/send', authenticateUser, async (req: Request, res: Response) => {
  * /api/discord/test:
  *   post:
  *     summary: Test Discord notification
- *     description: Send a test notification to verify Discord webhook is working
+ *     description: Send a test notification to verify Discord webhook is configured correctly
  *     tags: [Discord Notifications]
  *     security:
  *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 description: Optional custom test message
  *     responses:
  *       200:
- *         description: Test notification sent successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Test notification sent successfully"
- *                 results:
- *                   type: object
- *                   properties:
- *                     discord:
- *                       type: boolean
- *                       example: true
+ *         description: Test notification sent
  *       500:
- *         description: Internal server error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   type: string
- *                   example: "Failed to send test notification"
+ *         description: Failed to send test notification
  */
-router.post('/test', authenticateUser, async (req: Request, res: Response) => {
+router.post('/test', authenticate, async (req: Request, res: Response): Promise<void> => {
+  if (!requireAuth(req, res)) return;
+
   try {
-    const discordMessage = `🧪 **Test Notification**\n\nKPI ETL Pipeline notification test.\nUser ID: ${req.auth?.userId}\nTime: ${new Date().toISOString()}`;
-    
-    const success = await notifier.sendDiscord(discordMessage);
+    const customMessage = req.body?.message;
+    const message = customMessage || `🧪 **Test Notification**\n\nKPI ETL Pipeline notification test.\nUser: ${req.user?.userId || 'unknown'}\nTime: ${new Date().toISOString()}`;
+
+    const success = await notifier.sendDiscord(message);
 
     if (success) {
       logger.info('Discord test notification sent successfully', {
-        userId: req.auth?.userId
+        userId: req.user?.userId
       });
 
       res.json({
         success: true,
         message: 'Test notification sent successfully',
-        results: {
-          discord: true
-        }
+        data: { discord: true }
       });
     } else {
-      logger.error('Failed to send Discord test notification', {
-        userId: req.auth?.userId
-      });
-
+      logger.error('Failed to send Discord test notification');
       res.status(500).json({
         success: false,
-        error: 'Failed to send test notification to Discord'
+        error: 'Failed to send test notification to Discord',
+        data: { discord: false }
       });
     }
   } catch (error) {
     logger.error('Error sending Discord test notification', {
-      userId: req.auth?.userId,
       error: error instanceof Error ? error.message : String(error)
     });
 

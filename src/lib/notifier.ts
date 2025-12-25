@@ -76,8 +76,9 @@ class Notifier {
 
   /**
    * Send Discord webhook notification
+   * Public method to allow direct Discord notifications from external modules
    */
-  private async sendDiscord(content: string): Promise<boolean> {
+  public async sendDiscord(content: string): Promise<boolean> {
     // Using hardcoded Discord webhook URL
     const webhookUrl = 'https://discord.com/api/webhooks/1453825840843587684/Gz0tMXlusciDXREYBZVlurHJ3aTE19s79ibuUmmBLS60TWWE-pkIucLghSa7Zipr2rOx';
 
