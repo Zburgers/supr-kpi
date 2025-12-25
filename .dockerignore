@@ -17,6 +17,7 @@ dist/
 !package.json
 !package-lock.json
 !tsconfig.json
+!tsoa.json
 
 # IDE
 .idea/

@@ -56,7 +56,7 @@ COPY . .
 RUN rm -rf public && mkdir -p public
 COPY --from=dashboard-build /app/dashboard/dist/ ./public/
 
-# Build TypeScript
+# Build TypeScript (TSOA will generate routes and OpenAPI spec)
 RUN npm run build
 
 # ============================================================================
