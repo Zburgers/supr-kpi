@@ -1,17 +1,27 @@
 /**
- * Sheet Validation & Header Management
+ * Sheet Validation & Schema Information
  * 
- * Handles validation of Google Sheets to ensure they have the correct schema
- * before syncing data. Supports:
- * - Creating headers in empty sheets
- * - Validating headers match expected schema
- * - Detecting mismatched schemas to prevent data corruption
+ * Provides schema definitions and validation utilities for Google Sheets.
+ * 
+ * IMPORTANT: Header creation is handled automatically by the backend adapters
+ * during sync operations. This module provides:
+ * - Schema definitions for reference
+ * - Pre-flight validation to show user-friendly warnings
+ * - Schema mismatch detection to prevent data corruption
+ * 
+ * @see src/adapters/meta.adapter.ts
+ * @see src/adapters/ga4.adapter.ts  
+ * @see src/adapters/shopify.adapter.ts
  */
 
 import type { Platform } from '@/types'
 import * as api from './api'
 
-// Define expected headers for each service
+/**
+ * Expected headers for each service's Google Sheet.
+ * Note: 'id' column is added by backend, not included here.
+ * These match the backend adapter schemas.
+ */
 const SHEET_SCHEMAS: Record<Platform, readonly string[]> = {
   meta: [
     'date',
@@ -46,13 +56,24 @@ const SHEET_SCHEMAS: Record<Platform, readonly string[]> = {
 }
 
 export interface HeaderValidationResult {
+  /** Whether the sheet is ready for syncing */
   valid: boolean
+  /** Whether the sheet has any headers */
   hasHeaders: boolean
+  /** Type of header match found */
   headerMatch: 'exact' | 'partial' | 'mismatch' | 'empty'
+  /** Headers expected but not found */
   missingHeaders?: string[]
+  /** Extra headers found beyond expected */
   extraHeaders?: string[]
+  /** If mismatch, which schema was detected */
   detectedSchema?: Platform | null
+  /** User-friendly message explaining the validation result */
   message: string
+  /** 
+   * Whether headers need to be created.
+   * Note: Backend handles this automatically during sync.
+   */
   requiresHeaderCreation: boolean
 }
 
@@ -99,7 +120,7 @@ export function validateHeaders(
   // Edge case: Sheet is completely empty
   if (!sheetData || sheetData.length === 0) {
     return {
-      valid: false,
+      valid: true, // Backend will create headers automatically
       hasHeaders: false,
       headerMatch: 'empty',
       message: `Sheet is empty. Headers will be created automatically when syncing.`,
@@ -115,7 +136,7 @@ export function validateHeaders(
   const hasAnyHeader = normalizedHeaders.some(h => h.length > 0)
   if (!hasAnyHeader) {
     return {
-      valid: false,
+      valid: true, // Backend will create headers automatically
       hasHeaders: false,
       headerMatch: 'empty',
       message: `First row appears to be empty. Headers will be created automatically when syncing.`,
@@ -180,8 +201,14 @@ export function validateHeaders(
 }
 
 /**
- * Check if a sheet has valid headers for the service
- * Returns whether validation passed
+ * Check if a sheet has valid headers for the service.
+ * This is a pre-flight check - the backend handles actual header creation.
+ * 
+ * @param service - The platform service type
+ * @param spreadsheetId - Google Sheets spreadsheet ID
+ * @param sheetName - Name of the sheet within the spreadsheet
+ * @param credentialId - Google Sheets credential ID for authentication
+ * @returns Validation result with status and user-friendly message
  */
 export async function checkSheetHeaders(
   service: Platform,
@@ -194,11 +221,13 @@ export async function checkSheetHeaders(
     const response = await api.getSheetRawData(spreadsheetId, sheetName, credentialId)
 
     if (!response.success) {
+      // If sheet doesn't exist or can't be read, let the sync proceed
+      // Backend will handle the error with a proper message
       return {
-        valid: false,
+        valid: true, // Allow sync to proceed - backend handles errors
         hasHeaders: false,
         headerMatch: 'empty',
-        message: `Failed to read sheet: ${response.error}`,
+        message: `Could not read sheet: ${response.error}. Sync will attempt to proceed.`,
         requiresHeaderCreation: false,
       }
     }
@@ -206,49 +235,44 @@ export async function checkSheetHeaders(
     const sheetData = response.data || []
     return validateHeaders(sheetData, service)
   } catch (error) {
+    // On error, allow sync to proceed - backend will handle properly
     return {
-      valid: false,
+      valid: true,
       hasHeaders: false,
       headerMatch: 'empty',
-      message: `Error validating sheet: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      message: `Could not validate sheet: ${error instanceof Error ? error.message : 'Unknown error'}. Sync will attempt to proceed.`,
       requiresHeaderCreation: false,
     }
   }
 }
 
 /**
- * Create headers in a sheet by appending the header row
- * This is called before the first sync to an empty sheet
+ * Placeholder for header creation - BACKEND HANDLES THIS AUTOMATICALLY
+ * 
+ * The backend adapters (meta.adapter.ts, ga4.adapter.ts, shopify.adapter.ts)
+ * automatically create headers when syncing to an empty sheet.
+ * 
+ * This function exists for API compatibility but simply returns success,
+ * allowing the sync to proceed where the backend will handle header creation.
+ * 
+ * @param service - The platform service type
+ * @param _spreadsheetId - Unused - backend handles this
+ * @param _sheetName - Unused - backend handles this  
+ * @param _credentialId - Unused - backend handles this
+ * @returns Always returns success - backend handles actual header creation
  */
 export async function createSheetHeaders(
   service: Platform,
-  spreadsheetId: string,
-  sheetName: string,
-  credentialId: string
+  _spreadsheetId: string,
+  _sheetName: string,
+  _credentialId: string
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const headers = SHEET_SCHEMAS[service]
-
-    if (!credentialId) {
-      return {
-        success: false,
-        error: 'Missing credentials for sheet access',
-      }
-    }
-
-    // Headers will be created automatically during the first sync
-    // The sync process handles creating headers if the sheet is empty
-    // This function is mainly a placeholder for future direct header creation
-    console.log(`Headers would be created for ${service} service:`, headers);
-    return {
-      success: true,
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to create headers',
-    }
+  // Backend adapters handle header creation automatically during sync.
+  // This function is a passthrough to maintain API compatibility.
+  if (import.meta.env.DEV) {
+    console.log(`ℹ️ [Sheet Validation] Headers for ${service.toUpperCase()} will be created by backend during sync`)
   }
+  return { success: true }
 }
 
 /**

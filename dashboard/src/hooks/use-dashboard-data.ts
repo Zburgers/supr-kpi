@@ -11,7 +11,7 @@ import type {
 import { calculateAccurateChange, getDateRange } from '@/lib/utils'
 import { useServiceConfig } from '@/hooks/useServiceConfig'
 import * as api from '@/lib/api'
-import { checkSheetHeaders, createSheetHeaders } from '@/lib/sheet-validation'
+import { checkSheetHeaders } from '@/lib/sheet-validation'
 
 interface DashboardData {
   meta: MetaRawDaily[]
@@ -345,7 +345,8 @@ export function useDashboardData(dateRange: DateRange) {
           }
         }
 
-        // Before syncing, validate sheet headers
+        // Pre-flight validation: Check sheet headers for schema mismatches
+        // Note: Backend handles empty sheets and header creation automatically
         if (sheetConfig?.spreadsheetId) {
           const sheetName = platform === 'meta' 
             ? sheetConfig.metaSheetName 
@@ -360,24 +361,8 @@ export function useDashboardData(dateRange: DateRange) {
             googleSheetsCredentialId || credentialId
           )
 
-          // If headers are missing, create them first
-          if (validation.requiresHeaderCreation) {
-            const headerCreationResult = await createSheetHeaders(
-              platform,
-              sheetConfig.spreadsheetId,
-              sheetName,
-              googleSheetsCredentialId || credentialId
-            )
-
-            if (!headerCreationResult.success) {
-              return { 
-                success: false, 
-                error: `Failed to create headers: ${headerCreationResult.error}` 
-              }
-            }
-          }
-
-          // If headers don't match and it's not just empty, refuse to sync
+          // Only block sync if there's a definite schema mismatch (not empty sheets)
+          // Empty sheets (requiresHeaderCreation=true) are handled by backend
           if (!validation.valid && !validation.requiresHeaderCreation) {
             return { 
               success: false, 
@@ -385,12 +370,13 @@ export function useDashboardData(dateRange: DateRange) {
             }
           }
 
+          // Log validation info in dev mode
           if (import.meta.env.DEV && validation.message) {
             console.log(`📋 Sheet Validation [${platform}]:`, validation)
           }
         }
 
-        // Proceed with sync
+        // Proceed with sync - backend handles empty sheets and header creation
         const result = await api.syncService(platform, { credentialId })
 
         if (result.success) {
