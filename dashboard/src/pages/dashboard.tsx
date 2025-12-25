@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useDashboardData, useCalculatedMetrics } from '@/hooks/use-dashboard-data'
-import { formatCurrency, formatNumber, formatCompact, getDateRangeLabel } from '@/lib/utils'
+import { formatCurrency, formatNumber, getDateRangeLabel } from '@/lib/utils'
 import type { DateRange } from '@/types'
 import {
   DollarSign,
@@ -23,7 +23,6 @@ import {
   Percent,
   RefreshCw,
   AlertCircle,
-  CheckCircle2,
   Info,
 } from 'lucide-react'
 

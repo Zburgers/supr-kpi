@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { useTheme } from '@/components/theme-provider'
-import { getDateRange, formatDateRange } from '@/lib/utils'
+import { formatDateRange } from '@/lib/utils'
 import { RefreshCw, Moon, Sun, Monitor, Settings, ChevronRight, Calendar } from 'lucide-react'
 import type { DateRange } from '@/types'
 
@@ -51,9 +51,6 @@ export function Header({
       minute: '2-digit',
     })
   }
-
-  // Get the expected date range based on selection
-  const expectedRange = getDateRange(dateRange)
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
