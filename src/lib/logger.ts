@@ -16,14 +16,49 @@ interface LogEntry {
   context?: Record<string, unknown>;
 }
 
+const SENSITIVE_PATTERNS = [
+  /password/i,
+  /secret/i,
+  /token/i,
+  /authorization/i,
+  /cookie/i,
+  /apiKey/i,
+  /accessKey/i,
+  /secretKey/i,
+];
+
+/**
+ * Redact sensitive data from logs using JSON.stringify replacer
+ */
+export function logReplacer(key: string, value: any): any {
+  // Pass through if value is null/undefined
+  if (value === null || value === undefined) return value;
+
+  if (key && SENSITIVE_PATTERNS.some(pattern => pattern.test(key))) {
+    return '[REDACTED]';
+  }
+
+  return value;
+}
+
 /**
  * Format log entry as JSON
  */
 function formatLog(entry: LogEntry): string {
-  return JSON.stringify({
-    ...entry,
-    timestamp: entry.timestamp,
-  });
+  try {
+    return JSON.stringify({
+      ...entry,
+      timestamp: entry.timestamp,
+    }, logReplacer);
+  } catch (error) {
+    // Fallback if JSON.stringify fails (e.g. circular reference)
+    return JSON.stringify({
+      level: entry.level,
+      timestamp: entry.timestamp,
+      message: entry.message,
+      error: 'Failed to serialize context: ' + (error instanceof Error ? error.message : String(error)),
+    });
+  }
 }
 
 /**

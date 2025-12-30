@@ -117,7 +117,7 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   logger.debug('Incoming request', {
     method: req.method,
     path: req.path,
-    query: req.query,
+    query: req.query, // Logger will now redact sensitive query params
   });
   next();
 });
