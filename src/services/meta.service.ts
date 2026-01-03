@@ -343,6 +343,22 @@ class MetaService {
 
     await sheetsService.initializeWithCredentials(credentialJson);
 
+    // Ensure header row exists before any operations
+    const expectedHeaders = [
+      'id',
+      'date',
+      'spend',
+      'reach',
+      'impressions',
+      'clicks',
+      'landing_page_views',
+      'add_to_cart',
+      'initiate_checkout',
+      'purchases',
+      'revenue'
+    ];
+    await sheetsService.ensureHeaderRow(spreadsheetId, sheetName, expectedHeaders);
+
     // Get header row
     const headerValues = await sheetsService.getValues(spreadsheetId, sheetName, 'A1:Z1');
     const headerRow = (headerValues[0] || []) as (string | number | null)[];

@@ -200,6 +200,19 @@ class Ga4Service {
 
     await sheetsService.initializeWithCredentials(credentialJson);
 
+    // Ensure header row exists before any operations
+    const expectedHeaders = [
+      'id',
+      'date',
+      'sessions',
+      'users',
+      'add_to_cart',
+      'purchases',
+      'revenue',
+      'bounce_rate'
+    ];
+    await sheetsService.ensureHeaderRow(spreadsheetId, sheetName, expectedHeaders);
+
     const headerValues = await sheetsService.getValues(
       spreadsheetId,
       sheetName,

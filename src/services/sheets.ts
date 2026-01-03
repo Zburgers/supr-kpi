@@ -589,6 +589,104 @@ class SheetsService {
   }
 
   /**
+   * Ensure header row exists in a sheet
+   * If the sheet is empty or headers don't match, write the expected headers
+   * This is called automatically by services before data operations
+   *
+   * @param {string} spreadsheetId - Google Sheets ID
+   * @param {string} sheetName - Name of the sheet
+   * @param {string[]} expectedHeaders - Expected header row
+   * @returns {Promise<void>}
+   */
+  async ensureHeaderRow(
+    spreadsheetId: string,
+    sheetName: string,
+    expectedHeaders: string[]
+  ): Promise<void> {
+    if (!this.initialized) {
+      throw new Error("Sheets service not initialized. Please call initializeWithCredentials() with stored credentials first.");
+    }
+
+    if (!this.sheets) throw new Error("Sheets not initialized");
+
+    try {
+      // Ensure sheet exists first
+      const normalizedSheetName = await this.ensureSheetExists(
+        spreadsheetId,
+        sheetName
+      );
+
+      // Read current first row
+      const headerRange = this.a1(sheetName, 'A1:Z1');
+      this.logRange(
+        'ensureHeaderRow',
+        spreadsheetId,
+        sheetName,
+        normalizedSheetName,
+        headerRange
+      );
+
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: headerRange,
+      });
+
+      const currentHeaders = (response.data.values?.[0] || []) as (string | number | null)[];
+      
+      // Check if headers need to be written
+      const needsHeaders = currentHeaders.length === 0 || 
+                          currentHeaders.every(h => !h || h === '');
+
+      if (needsHeaders) {
+        console.log(`[SheetsService] Writing headers for sheet "${sheetName}"`, {
+          expectedHeaders,
+          spreadsheetId
+        });
+
+        // Calculate the end column letter for the headers
+        const endColIndex = expectedHeaders.length - 1;
+        const endColLetter = this.columnLetterFromIndex(endColIndex);
+        const writeRange = this.a1(sheetName, `A1:${endColLetter}1`);
+
+        await this.sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: writeRange,
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: [expectedHeaders],
+          },
+        });
+
+        // Invalidate cache for this sheet
+        await this.invalidateCachedRows(spreadsheetId, sheetName);
+
+        console.log(`[SheetsService] ✓ Headers written successfully for "${sheetName}"`);
+      } else {
+        console.log(`[SheetsService] Headers already exist for "${sheetName}", skipping`);
+      }
+    } catch (error) {
+      console.error(`[SheetsService] Error ensuring headers for sheet "${sheetName}":`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper to convert column index to letter
+   * @private
+   */
+  private columnLetterFromIndex(index: number): string {
+    const safeIndex = index < 0 ? 0 : index;
+    let n = safeIndex + 1;
+    let letters = '';
+    while (n > 0) {
+      const remainder = (n - 1) % 26;
+      letters = String.fromCharCode(65 + remainder) + letters;
+      n = Math.floor((n - 1) / 26);
+    }
+    return letters;
+  }
+
+  /**
    * Update a specific range in the sheet
    *
    * @param {string} spreadsheetId - Google Sheets ID
