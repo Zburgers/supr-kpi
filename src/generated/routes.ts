@@ -795,6 +795,8 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsSchedulerController_triggerSync: Record<string, TsoaRoute.ParameterSchema> = {
+                userId: {"in":"query","name":"userId","dataType":"double"},
+                service: {"in":"query","name":"service","dataType":"union","subSchemas":[{"dataType":"enum","enums":["meta"]},{"dataType":"enum","enums":["ga4"]},{"dataType":"enum","enums":["shopify"]}]},
         };
         app.post('/api/v1/scheduler/trigger',
             ...(fetchMiddlewares<RequestHandler>(SchedulerController)),

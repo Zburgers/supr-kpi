@@ -748,9 +748,9 @@ async function startServer(): Promise<void> {
   if (process.env.ENABLE_SCHEDULER === 'true') {
     try {
       await scheduler.start();
-      logger.info('⏰ Scheduler started successfully');
-      console.log('⏰ Scheduler started successfully');
-      console.log('   📅 Daily syncs will run automatically at 2:00 AM IST');
+      logger.info('⏰ Enhanced scheduler started successfully');
+      console.log('⏰ Enhanced scheduler started successfully');
+      console.log('   📅 User-specific schedules will run automatically based on individual configurations');
       console.log('   🔄 Manual syncs can be triggered via /api/schedules/:service/run');
     } catch (error) {
       logger.error('❌ Scheduler start failed', {
@@ -760,7 +760,7 @@ async function startServer(): Promise<void> {
     }
   } else {
     console.log('⏰ Scheduler is disabled (ENABLE_SCHEDULER=false)');
-    console.log('   📅 Daily syncs will NOT run automatically');
+    console.log('   📅 User-specific schedules will NOT run automatically');
     console.log('   🔄 Manual syncs can still be triggered via /api/schedules/:service/run');
   }
 

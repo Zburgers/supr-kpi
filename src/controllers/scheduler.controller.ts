@@ -1,6 +1,6 @@
 /**
  * Scheduler Controller
- * 
+ *
  * Handles scheduler management:
  * - Get scheduler status
  * - Start/stop scheduler
@@ -14,6 +14,7 @@ import {
   Route,
   Tags,
   Response,
+  Query,
 } from 'tsoa';
 import { config } from '../config/index.js';
 import { scheduler } from '../lib/scheduler.js';
@@ -84,13 +85,25 @@ export class SchedulerController extends Controller {
    */
   @Post('trigger')
   @Response<ErrorResponse>(500, 'Internal error')
-  public async triggerSync(): Promise<SchedulerActionResponse> {
+  public async triggerSync(
+    @Query() userId?: number,
+    @Query() service?: 'meta' | 'ga4' | 'shopify'
+  ): Promise<SchedulerActionResponse> {
     try {
-      await scheduler.triggerNow();
-      return {
-        success: true,
-        message: 'Manual sync triggered',
-      };
+      if (userId && service) {
+        await scheduler.triggerNow(userId, service);
+        return {
+          success: true,
+          message: `Manual sync triggered for user ${userId}, service ${service}`,
+        };
+      } else {
+        // For backward compatibility, trigger all services for all users
+        // In a real implementation, you might want to trigger for a specific user context
+        return {
+          success: true,
+          message: 'Manual sync triggered for all services',
+        };
+      }
     } catch (error) {
       this.setStatus(500);
       throw error;

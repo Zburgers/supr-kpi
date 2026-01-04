@@ -72,12 +72,17 @@ class Scheduler {
   /**
    * Manually trigger a sync run
    */
-  async triggerNow(): Promise<void> {
-    logger.info('Manual sync triggered - this will trigger all configured services for all users');
+  async triggerNow(userId?: number, service?: 'meta' | 'ga4' | 'shopify'): Promise<void> {
+    if (userId && service) {
+      logger.info('Manual sync triggered for user and service', { userId, service });
+      await enhancedScheduler.triggerNow(userId, service);
+    } else {
+      logger.info('Manual sync triggered - this will trigger all configured services for all users');
 
-    // For backward compatibility, trigger all syncs for all users
-    // In a production system, this might be implemented differently
-    await etlQueue.enqueueAllSyncs();
+      // For backward compatibility, trigger all syncs for all users
+      // In a production system, this might be implemented differently
+      await etlQueue.enqueueAllSyncs();
+    }
   }
 
   /**
