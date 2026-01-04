@@ -1,95 +1,60 @@
 /**
  * Structured Logger
- * Provides consistent JSON logging for observability
+ * Provides consistent JSON logging for observability with improved formatting
  *
  * @module lib/logger
  */
 
+import pino, { Logger as PinoLogger } from 'pino';
 import { ETLEvent, ETLEventType, DataSource, IsoDate } from '../types/etl.js';
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+// Create base pino logger with pretty printing in development
+const createPinoLogger = (componentName?: string): PinoLogger => {
+  const isDev = process.env.NODE_ENV !== 'production';
 
-interface LogEntry {
-  level: LogLevel;
-  timestamp: string;
-  message: string;
-  context?: Record<string, unknown>;
-}
+  const transport = isDev ? {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:standard',
+      ignore: 'pid,hostname',
+      singleLine: false,
+    }
+  } : undefined;
 
-const SENSITIVE_PATTERNS = [
-  /password/i,
-  /secret/i,
-  /token/i,
-  /authorization/i,
-  /cookie/i,
-  /apiKey/i,
-  /accessKey/i,
-  /secretKey/i,
-];
+  const logger = pino({
+    level: process.env.LOG_LEVEL || 'info',
+    transport,
+    base: componentName ? { component: componentName } : undefined,
+    formatters: {
+      level(label) {
+        return { level: label };
+      }
+    }
+  });
 
-/**
- * Redact sensitive data from logs using JSON.stringify replacer
- */
-export function logReplacer(key: string, value: any): any {
-  // Pass through if value is null/undefined
-  if (value === null || value === undefined) return value;
-
-  if (key && SENSITIVE_PATTERNS.some(pattern => pattern.test(key))) {
-    return '[REDACTED]';
-  }
-
-  return value;
-}
-
-/**
- * Format log entry as JSON
- */
-function formatLog(entry: LogEntry): string {
-  try {
-    return JSON.stringify({
-      ...entry,
-      timestamp: entry.timestamp,
-    }, logReplacer);
-  } catch (error) {
-    // Fallback if JSON.stringify fails (e.g. circular reference)
-    return JSON.stringify({
-      level: entry.level,
-      timestamp: entry.timestamp,
-      message: entry.message,
-      error: 'Failed to serialize context: ' + (error instanceof Error ? error.message : String(error)),
-    });
-  }
-}
-
-/**
- * Get current ISO timestamp
- */
-function now(): string {
-  return new Date().toISOString();
-}
+  return logger;
+};
 
 /**
  * Logger class with structured output
  * Can be instantiated with a component name for contextualized logging
  */
 class Logger {
+  private pinoLogger: PinoLogger;
   private context: Record<string, unknown> = {};
-  private componentName?: string;
 
   constructor(componentName?: string) {
-    if (componentName) {
-      this.componentName = componentName;
-      this.context = { component: componentName };
-    }
+    this.pinoLogger = createPinoLogger(componentName);
   }
 
   /**
    * Create a child logger with additional context
    */
   child(context: Record<string, unknown>): Logger {
-    const child = new Logger();
-    child.context = { ...this.context, ...context };
-    return child;
+    const childLogger = new Logger();
+    childLogger.pinoLogger = this.pinoLogger.child(context);
+    return childLogger;
   }
 
   /**
@@ -97,7 +62,7 @@ class Logger {
    */
   debug(message: string, context?: Record<string, unknown>): void {
     if (process.env.LOG_LEVEL === 'debug') {
-      this.log('debug', message, context);
+      this.pinoLogger.debug(context || {}, message);
     }
   }
 
@@ -105,46 +70,21 @@ class Logger {
    * Log at info level
    */
   info(message: string, context?: Record<string, unknown>): void {
-    this.log('info', message, context);
+    this.pinoLogger.info(context || {}, message);
   }
 
   /**
    * Log at warn level
    */
   warn(message: string, context?: Record<string, unknown>): void {
-    this.log('warn', message, context);
+    this.pinoLogger.warn(context || {}, message);
   }
 
   /**
    * Log at error level
    */
   error(message: string, context?: Record<string, unknown>): void {
-    this.log('error', message, context);
-  }
-
-  /**
-   * Internal log method
-   */
-  private log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
-    const entry: LogEntry = {
-      level,
-      timestamp: now(),
-      message,
-      context: { ...this.context, ...context },
-    };
-
-    const output = formatLog(entry);
-
-    switch (level) {
-      case 'error':
-        console.error(output);
-        break;
-      case 'warn':
-        console.warn(output);
-        break;
-      default:
-        console.log(output);
-    }
+    this.pinoLogger.error(context || {}, message);
   }
 
   /**
@@ -152,7 +92,9 @@ class Logger {
    */
   event(event: ETLEvent): void {
     const level = event.type.includes('FAILURE') || event.type.includes('EXPIRED') ? 'error' : 'info';
-    this.log(level, `ETL_EVENT: ${event.type}`, {
+    const logMethod = this.pinoLogger[level].bind(this.pinoLogger);
+
+    logMethod({
       eventType: event.type,
       source: event.source,
       date: event.date,
@@ -161,7 +103,7 @@ class Logger {
       rowCount: event.rowCount,
       error: event.error,
       ...event.metadata,
-    });
+    }, `ETL_EVENT: ${event.type}`);
   }
 }
 
@@ -268,6 +210,14 @@ class EventEmitter {
   schemaMismatch(source: DataSource, expected: string[], actual: string[]): ETLEvent {
     return this.emit('SCHEMA_MISMATCH', { source, metadata: { expected, actual } });
   }
+}
+
+// Export singleton instances
+/**
+ * Get current ISO timestamp
+ */
+function now(): string {
+  return new Date().toISOString();
 }
 
 // Export singleton instances
