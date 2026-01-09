@@ -1,19 +1,25 @@
 /**
  * BullMQ Worker
  * Processes ETL sync jobs from the queue
+ * 
+ * Updated to use service-based workflow (same as manual syncs) instead of adapters.
+ * This ensures scheduled jobs use the same credential handling and token management
+ * as manual syncs triggered from the dashboard.
  *
  * @module lib/worker
  */
 
 import { Worker, Job } from 'bullmq';
-import { config, getSourceCredentials } from '../config/index.js';
+import { config } from '../config/index.js';
 import { logger, events } from './logger.js';
 import { ETLJobPayload, ETLJobResult, DataSource } from '../types/etl.js';
-import { metaAdapter } from '../adapters/meta.adapter.js';
-import { ga4Adapter } from '../adapters/ga4.adapter.js';
-import { shopifyAdapter } from '../adapters/shopify.adapter.js';
 import { notifier } from './notifier.js';
 import { etlQueue } from './queue.js';
+
+// Import services (same ones used by manual sync routes)
+import { metaService } from '../services/meta.service.js';
+import { ga4Service } from '../services/ga4.service.js';
+import { shopifyService } from '../services/shopify.service.js';
 
 // Parse Redis URL for connection config
 function parseRedisUrl(url: string): { host: string; port: number; password?: string } {
@@ -34,6 +40,8 @@ const QUEUE_NAME = 'etl-sync';
 
 /**
  * Process a sync job based on source
+ * Uses the same services as manual syncs (ga4Service, metaService, shopifyService)
+ * This ensures consistent credential handling, token refresh, and error handling.
  */
 async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJobResult> {
   const { source, targetDate, jobId, userId: jobUserId } = job.data;
@@ -41,198 +49,170 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
 
   // Create a job-specific logger for better observability
   const jobLogger = logger.child({ jobId, source, userId: jobUserId });
-  jobLogger.info(`Processing ${source} sync job`, { targetDate });
+  jobLogger.info(`Processing ${source} sync job via service workflow`, { targetDate, isScheduledJob: true });
 
   // Emit sync started event
   events.syncStarted(source, targetDate, jobId);
 
   try {
-    // Get credentials from the database (new system)
-    let credentialJson: string | undefined;
-    let userId: number | undefined;
-
-    // We need to get the service configuration to find the credential ID
-    // This would require fetching from the service_configs table
-    // For now, we'll use the workflowRunner approach which already handles this
+    // Import database utilities for credential lookup
     const { executeQuery } = await import('../lib/database.js');
-    const { decryptCredential } = await import('../lib/encryption.js');
+
+    // Validate userId is provided (required for multi-tenant support)
+    if (!jobUserId) {
+      jobLogger.error('No userId provided in job payload - required for credential lookup');
+      throw new Error('User ID is required for sync jobs. Please ensure userId is passed when enqueueing.');
+    }
 
     // Get the service configuration to find the credential ID
-    // If userId is provided in job, filter by it (multi-tenant support)
-    const userFilter = jobUserId ? 'AND sc.user_id = $2' : '';
-    const queryParams = jobUserId
-      ? [source, jobUserId]
-      : [source];
-
-    jobLogger.info('Fetching service configuration', { service: source });
+    jobLogger.info('Fetching service configuration for user', { service: source, userId: jobUserId });
+    
     const serviceConfigResult = await executeQuery(
-      `SELECT sc.credential_id, sc.user_id FROM service_configs sc
-       WHERE sc.service = $1 AND sc.enabled = true ${userFilter}
+      `SELECT sc.credential_id, sc.user_id, c.service as credential_service
+       FROM service_configs sc
+       LEFT JOIN credentials c ON c.id = sc.credential_id AND c.deleted_at IS NULL
+       WHERE sc.service = $1 AND sc.enabled = true AND sc.user_id = $2
        LIMIT 1`,
-      queryParams
+      [source, jobUserId]
     );
+
+    if (serviceConfigResult.rows.length === 0) {
+      jobLogger.error('No enabled service configuration found', { 
+        service: source, 
+        userId: jobUserId,
+        suggestion: 'User needs to configure and enable this service in the dashboard'
+      });
+      throw new Error(`No enabled service configuration found for ${source}. Please configure and enable the service in Settings.`);
+    }
+
+    const serviceConfig = serviceConfigResult.rows[0];
+    const credentialId = serviceConfig.credential_id;
+
+    if (!credentialId) {
+      jobLogger.error('Service configuration exists but no credential linked', { 
+        service: source, 
+        userId: jobUserId 
+      });
+      throw new Error(`No credential linked to ${source} service. Please add credentials in Settings.`);
+    }
+
+    jobLogger.info('Found credential for service', { 
+      credentialId, 
+      credentialService: serviceConfig.credential_service,
+      userId: jobUserId 
+    });
 
     let result: ETLJobResult;
 
-    if (serviceConfigResult.rows.length > 0 && serviceConfigResult.rows[0].credential_id) {
-      // Get the credential from the database
-      const credentialId = serviceConfigResult.rows[0].credential_id;
-      jobLogger.info('Fetching credential from database', { credentialId });
-
-      const credentialResult = await executeQuery(
-        `SELECT encrypted_data, user_id FROM credentials
-         WHERE id = $1 AND deleted_at IS NULL`,
-        [credentialId]
-      );
-
-      if (credentialResult.rows.length > 0) {
-        const encryptedData = credentialResult.rows[0].encrypted_data;
-        userId = credentialResult.rows[0].user_id;
-        jobLogger.info('Decrypting credential', { userId });
-        credentialJson = decryptCredential(encryptedData, String(userId));
-      } else {
-        jobLogger.error('Credential not found in database', { credentialId });
-
-        // Send notification about credential not found
-        await notifier.sendDiscord(`❌ **Worker Error**\n\nCredential with ID ${credentialId} not found in database.\nTime: ${new Date().toISOString()}`);
-        throw new Error(`Credential with ID ${credentialId} not found in database`);
-      }
-    } else {
-      jobLogger.error('No enabled service configuration found', { service: source, userId: jobUserId });
-
-      // Send notification about missing service configuration
-      await notifier.sendDiscord(`❌ **Worker Error**\n\nNo enabled service configuration found for service: ${source}.\nUser ID: ${jobUserId}\nTime: ${new Date().toISOString()}`);
-      throw new Error(`No enabled service configuration found for service: ${source}. Please configure credentials in the dashboard.`);
-    }
-
-    // If no stored credentials found, throw an error instead of falling back to environment variables
-    if (!credentialJson) {
-      jobLogger.error('No stored credentials found for service', { service: source });
-
-      // Send notification about missing stored credentials
-      await notifier.sendDiscord(`❌ **Worker Error**\n\nNo stored credentials found for service: ${source}.\nTime: ${new Date().toISOString()}`);
-      throw new Error(`No stored credentials found for service: ${source}. Please configure credentials in the dashboard.`);
-    }
-
-    // Parse the credential JSON to get the credential data
-    const credentialData = JSON.parse(credentialJson);
-
-    // Log credential information (without sensitive data)
-    jobLogger.info('Credential validation passed', {
-      service: source,
-      hasAccessToken: !!credentialData.access_token,
-      hasAccountId: !!credentialData.account_id,
-      hasPrivateKey: !!credentialData.private_key,
-      hasClientEmail: !!credentialData.client_email
-    });
-
+    // Use the appropriate service based on source
+    // These services handle all credential decryption, token refresh, and API calls
     switch (source) {
       case 'meta': {
-        jobLogger.info('Starting Meta sync process', { targetDate });
-
-        // Validate required Meta credentials
-        if (!credentialData.access_token) {
-          jobLogger.error('Meta access token is missing from credential');
-          throw new Error('Meta access token is required');
+        jobLogger.info('Starting Meta sync via metaService.runWorkflow', { credentialId, userId: jobUserId });
+        
+        try {
+          const workflowResult = await metaService.runWorkflow(credentialId, jobUserId);
+          
+          // Map service metrics to ETL result format
+          // Note: Service uses string IDs, ETL uses numeric IDs - we omit id from metrics for compatibility
+          const { id: _metaId, metricSources: _sources, ...metaMetrics } = workflowResult.metrics;
+          
+          result = {
+            success: workflowResult.appendResult.success,
+            jobId,
+            source,
+            date: workflowResult.metrics.date || targetDate,
+            mode: workflowResult.appendResult.mode,
+            rowNumber: workflowResult.appendResult.rowNumber,
+            metrics: { ...metaMetrics, source: 'meta' as const } as any,
+            error: workflowResult.appendResult.error,
+            durationMs: Date.now() - startTime,
+            completedAt: new Date().toISOString(),
+          };
+          
+          jobLogger.info('Meta sync completed via service', {
+            success: result.success,
+            mode: result.mode,
+            date: result.date,
+            rowNumber: result.rowNumber
+          });
+        } catch (metaError) {
+          const errorMessage = metaError instanceof Error ? metaError.message : String(metaError);
+          jobLogger.error('Meta service workflow failed', { error: errorMessage });
+          throw metaError;
         }
-        if (!credentialData.account_id) {
-          jobLogger.error('Meta account ID is missing from credential');
-          throw new Error('Meta account ID is required');
-        }
-
-        // Map credential fields to adapter expected format
-        const options = {
-          accessToken: credentialData.access_token, // Map snake_case to camelCase
-          accountId: credentialData.account_id,     // Map snake_case to camelCase
-          targetDate,
-          spreadsheetId: job.data.spreadsheetId || config.sources.meta.spreadsheetId,
-          sheetName: job.data.sheetName || config.sources.meta.sheetName,
-        };
-
-        const adapterResult = await metaAdapter.sync(options, credentialJson);
-        result = {
-          success: adapterResult.success,
-          jobId,
-          source,
-          date: targetDate,
-          mode: adapterResult.mode,
-          rowNumber: adapterResult.rowNumber,
-          metrics: adapterResult.metrics,
-          error: adapterResult.error,
-          durationMs: Date.now() - startTime,
-          completedAt: new Date().toISOString(),
-        };
         break;
       }
 
       case 'ga4': {
-        jobLogger.info('Starting GA4 sync process', { targetDate });
-
-        // For GA4, we need to determine if it's service account or OAuth format
-        const isServiceAccount = credentialData.type === 'service_account';
-
-        let options;
-        if (isServiceAccount) {
-          // Service account format - map to adapter format if needed
-          options = {
-            accessToken: credentialData.access_token, // For service account auth
-            propertyId: credentialData.property_id,   // Property ID might be in credential
-            targetDate,
-            spreadsheetId: job.data.spreadsheetId || config.sources.ga4.spreadsheetId,
-            sheetName: job.data.sheetName || config.sources.ga4.sheetName,
+        jobLogger.info('Starting GA4 sync via ga4Service.runWorkflow', { credentialId, userId: jobUserId });
+        
+        try {
+          const workflowResult = await ga4Service.runWorkflow(credentialId, jobUserId);
+          
+          // Map service metrics to ETL result format
+          const { id: _ga4Id, ...ga4Metrics } = workflowResult.metrics;
+          
+          result = {
+            success: workflowResult.appendResult.success,
+            jobId,
+            source,
+            date: workflowResult.metrics.date || targetDate,
+            mode: workflowResult.appendResult.mode,
+            rowNumber: workflowResult.appendResult.rowNumber,
+            metrics: { ...ga4Metrics, source: 'ga4' as const } as any,
+            error: workflowResult.appendResult.error,
+            durationMs: Date.now() - startTime,
+            completedAt: new Date().toISOString(),
           };
-        } else {
-          // OAuth format - map snake_case to camelCase
-          options = {
-            accessToken: credentialData.refresh_token || credentialData.access_token, // Use appropriate token
-            propertyId: credentialData.property_id,
-            targetDate,
-            spreadsheetId: job.data.spreadsheetId || config.sources.ga4.spreadsheetId,
-            sheetName: job.data.sheetName || config.sources.ga4.sheetName,
-          };
+          
+          jobLogger.info('GA4 sync completed via service', {
+            success: result.success,
+            mode: result.mode,
+            date: result.date,
+            rowNumber: result.rowNumber
+          });
+        } catch (ga4Error) {
+          const errorMessage = ga4Error instanceof Error ? ga4Error.message : String(ga4Error);
+          jobLogger.error('GA4 service workflow failed', { error: errorMessage });
+          throw ga4Error;
         }
-
-        const adapterResult = await ga4Adapter.sync(options, credentialJson);
-        result = {
-          success: adapterResult.success,
-          jobId,
-          source,
-          date: targetDate,
-          mode: adapterResult.mode,
-          rowNumber: adapterResult.rowNumber,
-          metrics: adapterResult.metrics,
-          error: adapterResult.error,
-          durationMs: Date.now() - startTime,
-          completedAt: new Date().toISOString(),
-        };
         break;
       }
 
       case 'shopify': {
-        jobLogger.info('Starting Shopify sync process', { targetDate });
-
-        // Map credential fields to adapter expected format
-        const options = {
-          storeDomain: credentialData.shop_url,  // Map snake_case to camelCase
-          accessToken: credentialData.access_token, // Map snake_case to camelCase
-          targetDate,
-          spreadsheetId: job.data.spreadsheetId || config.sources.shopify.spreadsheetId,
-          sheetName: job.data.sheetName || config.sources.shopify.sheetName,
-        };
-
-        const adapterResult = await shopifyAdapter.sync(options, credentialJson);
-        result = {
-          success: adapterResult.success,
-          jobId,
-          source,
-          date: targetDate,
-          mode: adapterResult.mode,
-          rowNumber: adapterResult.rowNumber,
-          metrics: adapterResult.metrics,
-          error: adapterResult.error,
-          durationMs: Date.now() - startTime,
-          completedAt: new Date().toISOString(),
-        };
+        jobLogger.info('Starting Shopify sync via shopifyService.runWorkflow', { credentialId, userId: jobUserId });
+        
+        try {
+          const workflowResult = await shopifyService.runWorkflow(credentialId, jobUserId);
+          
+          // Map service metrics to ETL result format
+          const { id: _shopifyId, ...shopifyMetrics } = workflowResult.metrics;
+          
+          result = {
+            success: workflowResult.appendResult.success,
+            jobId,
+            source,
+            date: workflowResult.metrics.date || targetDate,
+            mode: workflowResult.appendResult.mode,
+            rowNumber: workflowResult.appendResult.rowNumber,
+            metrics: { ...shopifyMetrics, source: 'shopify' as const } as any,
+            error: workflowResult.appendResult.error,
+            durationMs: Date.now() - startTime,
+            completedAt: new Date().toISOString(),
+          };
+          
+          jobLogger.info('Shopify sync completed via service', {
+            success: result.success,
+            mode: result.mode,
+            date: result.date,
+            rowNumber: result.rowNumber
+          });
+        } catch (shopifyError) {
+          const errorMessage = shopifyError instanceof Error ? shopifyError.message : String(shopifyError);
+          jobLogger.error('Shopify service workflow failed', { error: errorMessage });
+          throw shopifyError;
+        }
         break;
       }
 
@@ -271,7 +251,7 @@ async function processJob(job: Job<ETLJobPayload, ETLJobResult>): Promise<ETLJob
     });
 
     // Check for specific error types
-    if (errorMessage.includes('token') || errorMessage.includes('401') || errorMessage.includes('unauthorized')) {
+    if (errorMessage.includes('token') || errorMessage.includes('401') || errorMessage.includes('unauthorized') || errorMessage.includes('Unauthorized')) {
       events.tokenExpired(source);
     }
 

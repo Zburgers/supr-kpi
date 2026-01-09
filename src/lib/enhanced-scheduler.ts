@@ -137,18 +137,31 @@ class EnhancedScheduler {
       const job = cron.schedule(
         schedule.cron_expression,
         async () => {
+          const triggerTime = new Date();
           logger.info('Scheduled sync triggered', {
             userId: schedule.user_id,
             service: schedule.service,
             cron: schedule.cron_expression,
-            timezone: schedule.timezone
+            timezone: schedule.timezone,
+            triggerTime: triggerTime.toISOString(),
+            localTime: triggerTime.toLocaleString('en-US', { timeZone: schedule.timezone }),
+            scheduleId: schedule.id
           });
 
           try {
             // Update last_run_at in database
             await this.updateLastRunAt(schedule.id);
 
+            logger.info('Enqueueing sync job to worker queue', {
+              userId: schedule.user_id,
+              service: schedule.service,
+              scheduleId: schedule.id,
+              note: 'Job will be processed by worker using service-based workflow (same as manual sync)'
+            });
+
             // Enqueue the sync job with user context
+            // The worker will use the service files (metaService, ga4Service, shopifyService)
+            // which handle credential decryption, token management, and API calls
             const job = await etlQueue.enqueueSync(schedule.service as 'meta' | 'ga4' | 'shopify', {
               userId: schedule.user_id,
             });
@@ -156,20 +169,28 @@ class EnhancedScheduler {
             logger.info('Sync job enqueued successfully', {
               userId: schedule.user_id,
               service: schedule.service,
-              jobId: job.id
+              jobId: job.id,
+              scheduleId: schedule.id,
+              enqueuedAt: new Date().toISOString()
             });
 
             // Update next_run_at in database after successful execution
             await this.updateNextRunAt(schedule.id, schedule.cron_expression, schedule.timezone);
           } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorStack = error instanceof Error ? error.stack : undefined;
+            
             logger.error('Failed to execute scheduled sync', {
               userId: schedule.user_id,
               service: schedule.service,
-              error: error instanceof Error ? error.message : String(error),
+              scheduleId: schedule.id,
+              error: errorMessage,
+              stack: errorStack,
+              triggerTime: triggerTime.toISOString()
             });
 
             // Send notification about sync failure
-            await notifier.sendDiscord(`❌ **Scheduled Sync Failed**\n\nScheduled sync failed for user ${schedule.user_id}, service ${schedule.service}.\nError: ${error instanceof Error ? error.message : String(error)}\nTime: ${new Date().toISOString()}`);
+            await notifier.sendDiscord(`❌ **Scheduled Sync Failed**\n\nScheduled sync failed for user ${schedule.user_id}, service ${schedule.service}.\nError: ${errorMessage}\nTime: ${new Date().toISOString()}\nSchedule ID: ${schedule.id}`);
 
             // Schedule a retry after 10 minutes if the job failed
             await this.scheduleRetry(
