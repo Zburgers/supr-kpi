@@ -60,12 +60,10 @@ export interface ShopifyRunOptions {
   sheetName?: string;
 }
 
-// TODO: Extend this later to support date range queries beyond just yesterday
-// Suggestions for future enhancement:
-// - Add date range parameters (start_date, end_date)
-// - Add pagination for large date ranges
-// - Add support for historical data backfill
-const SHOPIFYQL_QUERY = `query { shopifyqlQuery(query: "FROM sales, customers SHOW day AS date, orders AS total_orders, total_sales AS total_revenue, net_sales AS net_revenue, returns AS returns_amount, new_customers, returning_customers AS repeat_customers DURING yesterday TIMESERIES day") { tableData { columns { name dataType displayName } rows } parseErrors } }`;
+// Split queries to avoid join complexity issues
+// We query 'sales' for transaction data and 'customers' for customer acquisition data
+const SALES_QUERY = 'FROM sales SHOW day AS date, orders AS total_orders, total_sales AS total_revenue, net_sales AS net_revenue, returns AS returns_amount DURING yesterday TIMESERIES day';
+const CUSTOMERS_QUERY = 'FROM customers SHOW day AS date, new_customers, returning_customers AS repeat_customers DURING yesterday TIMESERIES day';
 
 class ShopifyService {
   private toNumber(value: unknown): number {
@@ -90,7 +88,8 @@ class ShopifyService {
 
   private async fetchShopifyQL(
     storeDomain: string,
-    accessToken: string
+    accessToken: string,
+    shopifyQlQuery: string
   ): Promise<ShopifyQlResponse> {
     const domain = this.sanitizeStoreDomain(storeDomain);
     if (!domain) {
@@ -99,11 +98,14 @@ class ShopifyService {
 
     const SHOPIFY_API_VERSION = '2025-10';
     const url = `https://${domain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
-    logger.info('Fetching ShopifyQL data', { url });
+    logger.info('Fetching ShopifyQL data', { url, query: shopifyQlQuery });
+
+    // Construct the full GraphQL query wrapping the ShopifyQL query
+    const query = `query { shopifyqlQuery(query: "${shopifyQlQuery}") { tableData { columns { name dataType displayName } rows } parseErrors } }`;
 
     // Construct the request body manually to avoid encoding issues
     const requestBody = JSON.stringify({
-      query: SHOPIFYQL_QUERY,
+      query,
       variables: {},
     });
 
@@ -139,10 +141,13 @@ class ShopifyService {
     }
   }
 
-  private parseMetrics(apiResponse: ShopifyQlResponse): ShopifyMetricsRow {
+  private extractFirstRowData(apiResponse: ShopifyQlResponse): Record<string, string | number | null> {
     const shopifyql = apiResponse.data?.shopifyqlQuery;
 
     if (!shopifyql) {
+       if (apiResponse.errors && apiResponse.errors.length > 0) {
+         throw new Error(`Shopify API Errors: ${apiResponse.errors.map(e => e.message).join(', ')}`);
+      }
       throw new Error('ShopifyQL response missing shopifyqlQuery data');
     }
 
@@ -158,50 +163,8 @@ class ShopifyService {
       throw new Error('ShopifyQL returned no rows for yesterday');
     }
 
-    const columns = table.columns || [];
     const firstRow = (table.rows[0] as Record<string, string | number | null>) || {};
-
-    logger.debug('ShopifyQL response', {
-      columns: columns.map((c) => c?.name),
-      firstRow,
-    });
-
-    const getValue = (name: string): string | number | null => {
-      return firstRow[name] ?? null;
-    };
-
-    // Try to find date column - prefer 'date', fallback to 'day'
-    let dateRaw = getValue('date');
-    if (!dateRaw) {
-      dateRaw = getValue('day');
-      if (dateRaw) {
-        logger.debug('Using day column as date', { date: dateRaw });
-      }
-    }
-
-    if (!dateRaw) {
-      throw new Error(
-        `ShopifyQL row missing date/day value. Available fields: ${Object.keys(firstRow).join(', ')}`
-      );
-    }
-
-    const metrics: ShopifyMetricsRow = {
-      date: String(dateRaw),
-      total_orders: this.toNumber(getValue('total_orders')),
-      total_revenue: this.toNumber(getValue('total_revenue')),
-      net_revenue: this.toNumber(getValue('net_revenue')),
-      total_returns: Math.abs(this.toNumber(getValue('returns_amount'))),
-      new_customers: this.toNumber(getValue('new_customers')),
-      repeat_customers: this.toNumber(getValue('repeat_customers')),
-    };
-
-    logger.info('Parsed Shopify metrics', {
-      date: metrics.date,
-      orders: metrics.total_orders,
-      revenue: metrics.total_revenue,
-    });
-
-    return metrics;
+    return firstRow;
   }
 
   private toSheetRow(metrics: ShopifyMetricsRow): (string | number)[] {
@@ -415,9 +378,49 @@ class ShopifyService {
     const sheetsCredential = sheetsCredentialResult.rows[0];
     const sheetsDecryptedJson = decryptCredential(sheetsCredential.encrypted_data, String(userId));
 
-    // Fetch Shopify data
-    const apiResponse = await this.fetchShopifyQL(store_domain, access_token);
-    const metrics = this.parseMetrics(apiResponse);
+    // Fetch Shopify data (Parallel fetch)
+    const [salesResponse, customersResponse] = await Promise.all([
+      this.fetchShopifyQL(store_domain, access_token, SALES_QUERY),
+      this.fetchShopifyQL(store_domain, access_token, CUSTOMERS_QUERY)
+    ]);
+
+    const salesData = this.extractFirstRowData(salesResponse);
+    const customersData = this.extractFirstRowData(customersResponse);
+
+    // Merge data
+    const getValue = (source: Record<string, string | number | null>, key: string) => source[key];
+
+    // Try to find date column - prefer 'date', fallback to 'day'
+    let dateRaw = getValue(salesData, 'date');
+    if (!dateRaw) {
+      dateRaw = getValue(salesData, 'day');
+    }
+    // Fallback to customer data if missing in sales (unlikely)
+    if (!dateRaw) {
+       dateRaw = getValue(customersData, 'date') || getValue(customersData, 'day');
+    }
+
+    if (!dateRaw) {
+      throw new Error(
+        `ShopifyQL row missing date/day value.`
+      );
+    }
+
+    const metrics: ShopifyMetricsRow = {
+      date: String(dateRaw),
+      total_orders: this.toNumber(getValue(salesData, 'total_orders')),
+      total_revenue: this.toNumber(getValue(salesData, 'total_revenue')),
+      net_revenue: this.toNumber(getValue(salesData, 'net_revenue')),
+      total_returns: Math.abs(this.toNumber(getValue(salesData, 'returns_amount'))),
+      new_customers: this.toNumber(getValue(customersData, 'new_customers')),
+      repeat_customers: this.toNumber(getValue(customersData, 'repeat_customers')),
+    };
+
+    logger.info('Parsed Shopify metrics', {
+      date: metrics.date,
+      orders: metrics.total_orders,
+      revenue: metrics.total_revenue,
+    });
 
     const appendResult = await this.upsertToSheet(
       metrics,
