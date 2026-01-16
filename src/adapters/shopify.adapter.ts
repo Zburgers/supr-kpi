@@ -31,7 +31,11 @@ interface ShopifyQlResponse {
         columns: Array<{ name: string; dataType?: string }>;
         rows: Array<Record<string, string | number | null>>;
       } | null;
-      parseErrors?: Array<{ message?: string }> | null;
+      parseErrors?: Array<{
+        code?: string;
+        message?: string;
+        range?: { start?: number; end?: number };
+      }> | null;
     } | null;
   };
   errors?: Array<{ message?: string }>;
@@ -88,16 +92,23 @@ class ShopifyAdapter implements BaseAdapter<ShopifyDailyMetric, ShopifySyncOptio
   }
 
   /**
-   * Build ShopifyQL query
+   * Build ShopifyQL combined query (matches working curl request exactly)
    */
   private buildQuery(): string {
+    return 'FROM sales, customers SHOW day AS date, orders AS total_orders, total_sales AS total_revenue, net_sales AS net_revenue, returns AS returns_amount, new_customers, returning_customers AS repeat_customers DURING yesterday GROUP BY date';
+  }
+
+  /**
+   * Build full GraphQL query wrapper for a ShopifyQL query
+   */
+  private buildGraphQLQuery(shopifyQlQuery: string): string {
     return `query {
-      shopifyqlQuery(query: "FROM sales, customers SHOW day AS date, orders AS total_orders, total_sales AS total_revenue, net_sales AS net_revenue, returns AS returns_amount, new_customers, returning_customers AS repeat_customers DURING yesterday TIMESERIES day") {
+      shopifyqlQuery(query: "${shopifyQlQuery}") {
         tableData {
           columns { name dataType }
           rows
         }
-        parseErrors { message }
+        parseErrors { code message range }
       }
     }`;
   }
@@ -105,16 +116,16 @@ class ShopifyAdapter implements BaseAdapter<ShopifyDailyMetric, ShopifySyncOptio
   /**
    * Fetch data from Shopify Admin API
    */
-  private async fetchFromApi(storeDomain: string, accessToken: string): Promise<ShopifyQlResponse> {
+  private async fetchFromApi(storeDomain: string, accessToken: string, shopifyQlQuery: string): Promise<ShopifyQlResponse> {
     const domain = this.sanitizeStoreDomain(storeDomain);
     if (!domain) {
       throw new Error('Invalid store domain');
     }
 
     const url = `https://${domain}/admin/api/${this.apiVersion}/graphql.json`;
-    const query = this.buildQuery();
+    const query = this.buildGraphQLQuery(shopifyQlQuery);
 
-    logger.debug('Fetching Shopify data', { domain });
+    logger.debug('Fetching Shopify data', { domain, queryPreview: shopifyQlQuery.substring(0, 100) });
 
     const response = await fetch(url, {
       method: 'POST',
@@ -137,7 +148,7 @@ class ShopifyAdapter implements BaseAdapter<ShopifyDailyMetric, ShopifySyncOptio
         events.rateLimited('shopify');
         throw new Error('Shopify API rate limited');
       }
-      throw new Error(`Shopify API error ${response.status}: ${text}`);
+      throw new Error(`Shopify API error ${response.status}: ${text.substring(0, 500)}`);
     }
 
     return (await response.json()) as ShopifyQlResponse;
@@ -150,22 +161,48 @@ class ShopifyAdapter implements BaseAdapter<ShopifyDailyMetric, ShopifySyncOptio
     const shopifyql = apiResponse.data?.shopifyqlQuery;
 
     if (!shopifyql) {
+      // Check for GraphQL errors in the response
+      if (apiResponse.errors && apiResponse.errors.length > 0) {
+        const errorMessages = apiResponse.errors.map(e => e.message).join('; ');
+        logger.error('GraphQL errors in ShopifyQL response', { errors: apiResponse.errors });
+        throw new Error(`Shopify GraphQL errors: ${errorMessages}`);
+      }
       throw new Error('ShopifyQL response missing data');
     }
 
-    if (shopifyql.parseErrors?.length) {
-      const messages = shopifyql.parseErrors.map((e) => e.message || 'Unknown').join('; ');
+    if (shopifyql.parseErrors && shopifyql.parseErrors.length > 0) {
+      // Create detailed error message with all available info
+      const detailedErrors = shopifyql.parseErrors.map((e, idx) => {
+        const parts: string[] = [];
+        if (e.code) parts.push(`code: ${e.code}`);
+        if (e.message) parts.push(`message: ${e.message}`);
+        if (e.range) parts.push(`range: ${JSON.stringify(e.range)}`);
+        return `Error ${idx + 1}: ${parts.join(', ') || 'no details'}`;
+      }).join('; ');
+
+      logger.error('ShopifyQL parse errors', {
+        parseErrors: shopifyql.parseErrors,
+        rawResponse: JSON.stringify(apiResponse).substring(0, 1000)
+      });
+
+      const messages = shopifyql.parseErrors
+        .map((e) => e.message || `Unknown error (code: ${e.code || 'N/A'})`)
+        .join('; ');
       throw new Error(`ShopifyQL parse errors: ${messages}`);
     }
 
     const table = shopifyql.tableData;
     if (!table || !table.rows?.length) {
+      logger.warn('ShopifyQL returned no rows', {
+        hasTableData: !!table,
+        rowCount: table?.rows?.length
+      });
       throw new Error('ShopifyQL returned no rows for yesterday');
     }
 
     const firstRow = table.rows[0];
 
-    // Try to find date - prefer 'date', fallback to 'day'
+    // Get date - the query uses 'day AS date' so it should return 'date'
     let dateRaw = firstRow['date'] ?? firstRow['day'];
     if (!dateRaw) {
       throw new Error(`ShopifyQL row missing date/day. Fields: ${Object.keys(firstRow).join(', ')}`);
@@ -376,26 +413,33 @@ class ShopifyAdapter implements BaseAdapter<ShopifyDailyMetric, ShopifySyncOptio
   }
 
   /**
-   * Execute sync operation
-   */
-  async sync(options: ShopifySyncOptions, credentialJson?: string): Promise<SyncResult<ShopifyDailyMetric>> {
-    const { storeDomain, accessToken, spreadsheetId, sheetName } = options;
+    * Execute sync operation
+    */
+   async sync(options: ShopifySyncOptions, credentialJson?: string): Promise<SyncResult<ShopifyDailyMetric>> {
+     const { storeDomain, accessToken, spreadsheetId, sheetName } = options;
 
-    if (!storeDomain) {
-      return { success: false, error: 'Shopify store domain is required' };
-    }
-    if (!accessToken) {
-      return { success: false, error: 'Shopify access token is required' };
-    }
+     if (!storeDomain) {
+       return { success: false, error: 'Shopify store domain is required' };
+     }
+     if (!accessToken) {
+       return { success: false, error: 'Shopify access token is required' };
+     }
 
-    const sourceConfig = config.sources.shopify;
-    const finalSpreadsheetId = spreadsheetId || sourceConfig.spreadsheetId;
-    const finalSheetName = sheetName || sourceConfig.sheetName;
+     const sourceConfig = config.sources.shopify;
+     const finalSpreadsheetId = spreadsheetId || sourceConfig.spreadsheetId;
+     const finalSheetName = sheetName || sourceConfig.sheetName;
 
     try {
       logger.info('Starting Shopify sync', { storeDomain });
 
-      const apiResponse = await this.fetchFromApi(storeDomain, accessToken);
+      // Use combined query that matches the working curl request
+      const query = this.buildQuery();
+
+      logger.debug('Executing ShopifyQL query', {
+        query: query.substring(0, 100)
+      });
+
+      const apiResponse = await this.fetchFromApi(storeDomain, accessToken, query);
       const metrics = this.parseMetrics(apiResponse);
 
       logger.info('Shopify metrics extracted', {
