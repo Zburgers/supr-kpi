@@ -1,6 +1,6 @@
 /**
  * Credential Management Routes
- * 
+ *
  * Handles:
  * - Saving encrypted credentials
  * - Listing credentials (masked)
@@ -8,7 +8,7 @@
  * - Updating credentials
  * - Deleting credentials
  * - Verifying credentials work
- * 
+ *
  * Security:
  * - All endpoints require JWT authentication
  * - All queries filtered by user_id (RLS)
@@ -22,6 +22,7 @@ import { encryptCredential, decryptCredential, maskCredential } from '../lib/enc
 import { executeQuery, executeTransaction } from '../lib/database.js';
 import { logAudit } from '../lib/audit-log.js';
 import { logger } from '../lib/logger.js';
+import { hashCredentialData, areCredentialsEqual } from '../lib/credential-utils.js';
 import {
   SaveCredentialRequest,
   SaveCredentialResponse,
@@ -141,8 +142,9 @@ function getCredentialPreview(service: string, credentialJson: string): string {
 router.post('/save', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!requireAuth(req, res)) return;
 
+  const { credentialJson, credentialName, service } = req.body as SaveCredentialRequest;
+
   try {
-    const { credentialJson, credentialName, service } = req.body as SaveCredentialRequest;
 
     // Validate request body
     if (!credentialJson || !credentialName || !service) {
@@ -183,11 +185,13 @@ router.post('/save', authenticate, async (req: Request, res: Response): Promise<
       req.user!.userId
     );
 
-    // Decrypt each existing credential and compare with the new one
+    // Compare the new credential with existing ones to check for duplicates
     for (const existing of existingCredentials.rows) {
       try {
         const decryptedExisting = decryptCredential(existing.encrypted_data, String(req.user!.userId));
-        if (decryptedExisting === credentialJson) {
+
+        // Use the utility function to check if credentials are equal
+        if (areCredentialsEqual(credentialJson, decryptedExisting)) {
           res.status(409).json({
             error: 'This credential already exists',
             code: ErrorCode.DUPLICATE_CREDENTIAL,
@@ -252,17 +256,31 @@ router.post('/save', authenticate, async (req: Request, res: Response): Promise<
     // Return in standard API response format that frontend expects
     res.status(201).json({ success: true, data: response });
   } catch (error) {
-    logger.error('Failed to save credential', { error: String(error) });
+    // Enhanced error logging with more context
+    logger.error('Failed to save credential', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.user?.userId,
+      service,
+      credentialName,
+      timestamp: new Date().toISOString()
+    });
+
     await logAudit(
       req.user!.userId,
       'credential_saved',
-      undefined,
+      service,
       'failure',
-      error instanceof Error ? error.message : 'Unknown error'
+      error instanceof Error ? error.message : 'Unknown error',
+      {
+        credentialName,
+        service
+      }
     );
 
+    // More descriptive error response
     res.status(500).json({
-      error: 'Failed to save credential',
+      error: 'Failed to save credential: ' + (error instanceof Error ? error.message : 'An unknown error occurred'),
       code: ErrorCode.SERVICE_ERROR,
     } as ErrorResponse);
   }
@@ -305,10 +323,15 @@ router.get('/list', authenticate, async (req: Request, res: Response): Promise<v
     // Return in standard API response format that frontend expects
     res.json({ success: true, data: credentials });
   } catch (error) {
-    logger.error('Failed to list credentials', { error: String(error) });
+    logger.error('Failed to list credentials', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.user?.userId,
+      timestamp: new Date().toISOString()
+    });
 
     res.status(500).json({
-      error: 'Failed to list credentials',
+      error: 'Failed to list credentials: ' + (error instanceof Error ? error.message : 'An unknown error occurred'),
       code: ErrorCode.DATABASE_ERROR,
     } as ErrorResponse);
   }
@@ -321,8 +344,9 @@ router.get('/list', authenticate, async (req: Request, res: Response): Promise<v
 router.get('/:credentialId', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!requireAuth(req, res)) return;
 
+  const { credentialId } = req.params;
+
   try {
-    const { credentialId } = req.params;
 
     const result = await executeQuery(
       `
@@ -359,10 +383,16 @@ router.get('/:credentialId', authenticate, async (req: Request, res: Response): 
     // Return in standard API response format that frontend expects
     res.json({ success: true, data: response });
   } catch (error) {
-    logger.error('Failed to get credential', { error: String(error) });
+    logger.error('Failed to get credential', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.user?.userId,
+      credentialId,
+      timestamp: new Date().toISOString()
+    });
 
     res.status(500).json({
-      error: 'Failed to get credential',
+      error: 'Failed to get credential: ' + (error instanceof Error ? error.message : 'An unknown error occurred'),
       code: ErrorCode.DATABASE_ERROR,
     } as ErrorResponse);
   }
@@ -375,9 +405,11 @@ router.get('/:credentialId', authenticate, async (req: Request, res: Response): 
 router.put('/:credentialId', authenticate, async (req: Request, res: Response): Promise<void> => {
   if (!requireAuth(req, res)) return;
 
+  const { credentialId } = req.params;
+  const { credentialJson, credentialName } = req.body as UpdateCredentialRequest;
+  let service: string | undefined;
+
   try {
-    const { credentialId } = req.params;
-    const { credentialJson, credentialName } = req.body as UpdateCredentialRequest;
 
     // Check credential exists and belongs to user
     const checkResult = await executeQuery(
@@ -394,11 +426,11 @@ router.put('/:credentialId', authenticate, async (req: Request, res: Response): 
       return;
     }
 
-    const service = checkResult.rows[0].service;
+    service = checkResult.rows[0].service;
 
     // Validate new credential if provided
     if (credentialJson) {
-      const validationErrors = validateCredentialFormat(service, credentialJson);
+      const validationErrors = validateCredentialFormat(service!, credentialJson);
       if (validationErrors.length > 0) {
         res.status(400).json({
           error: 'Invalid credential format',
@@ -459,17 +491,28 @@ router.put('/:credentialId', authenticate, async (req: Request, res: Response): 
     // Return in standard API response format that frontend expects
     res.json({ success: true, data: response });
   } catch (error) {
-    logger.error('Failed to update credential', { error: String(error) });
+    logger.error('Failed to update credential', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.user?.userId,
+      credentialId,
+      timestamp: new Date().toISOString()
+    });
+
     await logAudit(
       req.user!.userId,
       'credential_updated',
-      undefined,
+      service,
       'failure',
-      error instanceof Error ? error.message : 'Unknown error'
+      error instanceof Error ? error.message : 'Unknown error',
+      {
+        credentialId,
+        credentialName
+      }
     );
 
     res.status(500).json({
-      error: 'Failed to update credential',
+      error: 'Failed to update credential: ' + (error instanceof Error ? error.message : 'An unknown error occurred'),
       code: ErrorCode.SERVICE_ERROR,
     } as ErrorResponse);
   }
@@ -485,8 +528,9 @@ router.delete(
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAuth(req, res)) return;
 
+    const { credentialId } = req.params;
+
     try {
-      const { credentialId } = req.params;
 
       // Soft delete credential
       const result = await executeTransaction(async (client) => {
@@ -530,7 +574,13 @@ router.delete(
 
       res.json(response);
     } catch (error) {
-      logger.error('Failed to delete credential', { error: String(error) });
+      logger.error('Failed to delete credential', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: req.user?.userId,
+        credentialId,
+        timestamp: new Date().toISOString()
+      });
 
       if (error instanceof Error && error.message === 'Credential not found') {
         res.status(404).json({
@@ -541,7 +591,7 @@ router.delete(
       }
 
       res.status(500).json({
-        error: 'Failed to delete credential',
+        error: 'Failed to delete credential: ' + (error instanceof Error ? error.message : 'An unknown error occurred'),
         code: ErrorCode.SERVICE_ERROR,
       } as ErrorResponse);
     }
@@ -558,8 +608,9 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAuth(req, res)) return;
 
+    const { credentialId } = req.params;
+
     try {
-      const { credentialId } = req.params;
 
       // Fetch credential
       const result = await executeQuery(
@@ -1024,7 +1075,14 @@ router.post(
           throw new Error('Credential verification failed - invalid format');
         }
       } catch (error) {
-        logger.error('Credential verification error', { error: String(error) });
+        logger.error('Credential verification error', {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          userId: req.user?.userId,
+          credentialId,
+          service: credential.service,
+          timestamp: new Date().toISOString()
+        });
 
         // Update the credential to mark it as not verified when verification fails
         try {
@@ -1039,8 +1097,10 @@ router.post(
           );
         } catch (dbError) {
           logger.error('Failed to update credential verification status', {
-            error: String(dbError),
-            credentialId
+            error: dbError instanceof Error ? dbError.message : String(dbError),
+            stack: dbError instanceof Error ? dbError.stack : undefined,
+            credentialId,
+            userId: req.user?.userId
           });
         }
 
@@ -1060,10 +1120,16 @@ router.post(
         } as ErrorResponse);
       }
     } catch (error) {
-      logger.error('Verification endpoint error', { error: String(error) });
+      logger.error('Verification endpoint error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: req.user?.userId,
+        credentialId,
+        timestamp: new Date().toISOString()
+      });
 
       res.status(500).json({
-        error: 'Verification service error',
+        error: 'Verification service error: ' + (error instanceof Error ? error.message : 'An unknown error occurred'),
         code: ErrorCode.SERVICE_ERROR,
       } as ErrorResponse);
     }
@@ -1080,8 +1146,9 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     if (!requireAuth(req, res)) return;
 
+    const { credentialId } = req.params;
+
     try {
-      const { credentialId } = req.params;
 
       const result = await executeQuery(
         `
@@ -1113,10 +1180,16 @@ router.get(
       // Return in standard API response format that frontend expects
       res.json({ success: true, data: response });
     } catch (error) {
-      logger.error('Failed to get verification status', { error: String(error) });
+      logger.error('Failed to get verification status', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: req.user?.userId,
+        credentialId,
+        timestamp: new Date().toISOString()
+      });
 
       res.status(500).json({
-        error: 'Failed to get verification status',
+        error: 'Failed to get verification status: ' + (error instanceof Error ? error.message : 'An unknown error occurred'),
         code: ErrorCode.DATABASE_ERROR,
       } as ErrorResponse);
     }
