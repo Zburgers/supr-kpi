@@ -633,11 +633,22 @@ class SheetsService {
 
       const currentHeaders = (response.data.values?.[0] || []) as (string | number | null)[];
       
-      // Check if headers need to be written
-      const needsHeaders = currentHeaders.length === 0 || 
-                          currentHeaders.every(h => !h || h === '');
+      // Normalize current headers for comparison
+      const normalizedCurrent = currentHeaders.map(h => 
+        typeof h === 'string' ? h.trim().toLowerCase() : ''
+      );
+      const normalizedExpected = expectedHeaders.map(h => h.toLowerCase());
+      
+      // Check if headers need to be written or updated
+      const isEmpty = currentHeaders.length === 0 || 
+                     currentHeaders.every(h => !h || h === '');
+      
+      // Check if expected headers are missing (comparing normalized versions)
+      const hasMissingHeaders = expectedHeaders.some((expectedHeader, idx) => {
+        return normalizedCurrent[idx] !== expectedHeader.toLowerCase();
+      });
 
-      if (needsHeaders) {
+      if (isEmpty) {
         console.log(`[SheetsService] Writing headers for sheet "${sheetName}"`, {
           expectedHeaders,
           spreadsheetId
@@ -661,8 +672,33 @@ class SheetsService {
         await this.invalidateCachedRows(spreadsheetId, sheetName);
 
         console.log(`[SheetsService] ✓ Headers written successfully for "${sheetName}"`);
+      } else if (hasMissingHeaders) {
+        console.log(`[SheetsService] Detected missing or mismatched columns for sheet "${sheetName}"`, {
+          current: currentHeaders,
+          expected: expectedHeaders,
+          spreadsheetId
+        });
+
+        // Update headers with expected ones
+        const endColIndex = expectedHeaders.length - 1;
+        const endColLetter = this.columnLetterFromIndex(endColIndex);
+        const writeRange = this.a1(sheetName, `A1:${endColLetter}1`);
+
+        await this.sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: writeRange,
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: [expectedHeaders],
+          },
+        });
+
+        // Invalidate cache for this sheet
+        await this.invalidateCachedRows(spreadsheetId, sheetName);
+
+        console.log(`[SheetsService] ✓ Headers updated successfully for "${sheetName}" with missing columns added`);
       } else {
-        console.log(`[SheetsService] Headers already exist for "${sheetName}", skipping`);
+        console.log(`[SheetsService] Headers already exist and match expected headers for "${sheetName}", skipping`);
       }
     } catch (error) {
       console.error(`[SheetsService] Error ensuring headers for sheet "${sheetName}":`, error);

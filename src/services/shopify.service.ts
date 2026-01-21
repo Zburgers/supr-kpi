@@ -28,6 +28,8 @@ export interface ShopifyMetricsRow {
   total_returns: number;
   new_customers: number;
   repeat_customers: number;
+  total_sessions: number;
+  aov: number;
 }
 
 interface ShopifyQlColumn {
@@ -60,9 +62,9 @@ export interface ShopifyRunOptions {
   sheetName?: string;
 }
 
-// Combined query that joins sales and customers tables
-// This matches the working curl request exactly
-const COMBINED_QUERY = 'FROM sales, customers SHOW day AS date, orders AS total_orders, total_sales AS total_revenue, net_sales AS net_revenue, returns AS returns_amount, new_customers, returning_customers AS repeat_customers DURING yesterday GROUP BY date';
+// Combined query that joins sales, customers, and sessions tables
+// Returns daily metrics including new AOV (average order value) and total sessions
+const COMBINED_QUERY = 'FROM sales, customers, sessions SHOW day AS date, orders AS total_orders, total_sales AS total_revenue, net_sales AS net_revenue, returns AS returns_amount, new_customers, returning_customers AS repeat_customers, sessions, total_sales / orders AS aov DURING yesterday GROUP BY date';
 
 class ShopifyService {
   private toNumber(value: unknown): number {
@@ -202,6 +204,8 @@ class ShopifyService {
       metrics.total_returns,
       metrics.new_customers,
       metrics.repeat_customers,
+      metrics.total_sessions,
+      metrics.aov,
     ];
     logger.debug('Shopify sheet row', { row });
     return row;
@@ -234,7 +238,9 @@ class ShopifyService {
       'net_revenue',
       'total_returns',
       'new_customers',
-      'repeat_customers'
+      'repeat_customers',
+      'total_sessions',
+      'aov'
     ];
     await sheetsService.ensureHeaderRow(spreadsheetId, sheetName, expectedHeaders);
 
@@ -431,12 +437,16 @@ class ShopifyService {
       total_returns: Math.abs(this.toNumber(getValue(rowData, 'returns_amount'))),
       new_customers: this.toNumber(getValue(rowData, 'new_customers')),
       repeat_customers: this.toNumber(getValue(rowData, 'repeat_customers')),
+      total_sessions: this.toNumber(getValue(rowData, 'sessions')),
+      aov: this.toNumber(getValue(rowData, 'aov')),
     };
 
     logger.info('Parsed Shopify metrics', {
       date: metrics.date,
       orders: metrics.total_orders,
       revenue: metrics.total_revenue,
+      sessions: metrics.total_sessions,
+      aov: metrics.aov,
     });
 
     const appendResult = await this.upsertToSheet(

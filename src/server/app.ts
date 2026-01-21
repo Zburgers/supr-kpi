@@ -58,8 +58,8 @@ import { shopifyAdapter } from '../adapters/shopify.adapter.js';
 
 // Services
 import { sheetsService } from '../services/sheets.js';
-import { metaService, META_SPREADSHEET_ID, META_SHEET_NAME } from '../services/meta.service.js';
-import { shopifyService, SHOPIFY_SPREADSHEET_ID, SHOPIFY_SHEET_NAME } from '../services/shopify.service.js';
+import { metaService } from '../services/meta.service.js';
+import { shopifyService } from '../services/shopify.service.js';
 import { ga4Service } from '../services/ga4.service.js';
 
 // Types

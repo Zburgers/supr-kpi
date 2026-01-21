@@ -12,18 +12,6 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { sheetsService } from "../services/sheets.js";
-import {
-  META_SHEET_NAME,
-  META_SPREADSHEET_ID,
-} from "../services/meta.service.js";
-import {
-  SHOPIFY_SHEET_NAME,
-  SHOPIFY_SPREADSHEET_ID,
-} from "../services/shopify.service.js";
-import {
-  GA_SHEET_NAME,
-  GA_SPREADSHEET_ID,
-} from "../services/ga4.service.js";
 import { ApiResponse, SheetRow } from "../types/kpi.js";
 
 // Setup for __dirname in ES modules

@@ -28,6 +28,7 @@ interface ScheduleConfigProps {
 const CRON_PRESETS: CronPreset[] = [
   { label: 'Every Hour', value: '0 * * * *', description: 'At minute 0 of every hour' },
   { label: 'Every 6 Hours', value: '0 */6 * * *', description: 'At minute 0 of every 6th hour' },
+  { label: 'Daily at Midnight', value: '0 0 * * *', description: 'Run once daily at 12:00 AM' },
   { label: 'Daily at 2 AM', value: '0 2 * * *', description: 'At 2:00 AM every day' },
   { label: 'Daily at 6 AM', value: '0 6 * * *', description: 'At 6:00 AM every day' },
   { label: 'Twice Daily', value: '0 2,14 * * *', description: 'At 2:00 AM and 2:00 PM' },
