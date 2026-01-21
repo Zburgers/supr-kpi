@@ -15,19 +15,15 @@ import { sheetsService } from "../services/sheets.js";
 import {
   META_SHEET_NAME,
   META_SPREADSHEET_ID,
-  metaInsightsWorkflow,
-} from "../services/meta.js";
-import type { MetaWorkflowResult } from "../services/meta.js";
+} from "../services/meta.service.js";
 import {
   SHOPIFY_SHEET_NAME,
   SHOPIFY_SPREADSHEET_ID,
-  shopifyWorkflow,
-} from "../services/shopify.js";
+} from "../services/shopify.service.js";
 import {
   GA_SHEET_NAME,
   GA_SPREADSHEET_ID,
-  googleAnalyticsWorkflow,
-} from "../services/google.js";
+} from "../services/ga4.service.js";
 import { ApiResponse, SheetRow } from "../types/kpi.js";
 
 // Setup for __dirname in ES modules
@@ -249,156 +245,8 @@ app.post(
   }
 );
 
-/**
- * Fetch Meta daily insights (yesterday) and append to meta_raw_daily sheet
- * Triggers the complete automation workflow defined in meta.ts
- * Accepts access token in request body to support temporary/rotating tokens
- */
-app.post("/api/meta/fetch", async (req: Request, res: Response) => {
-  try {
-    console.log("\n🔵 [API] POST /api/meta/fetch - Request received");
 
-    const { accessToken, spreadsheetId, sheetName } = req.body || {};
 
-    if (!accessToken) {
-      console.error("❌ [API] Missing accessToken in request body");
-      return res.status(400).json({
-        success: false,
-        error: "Access token is required. Please provide accessToken in request body.",
-      });
-    }
-
-    console.log("✓ [API] Access token received, starting workflow...");
-    const result: MetaWorkflowResult = await metaInsightsWorkflow.runWorkflow(
-      accessToken,
-      {
-        spreadsheetId: typeof spreadsheetId === "string" && spreadsheetId.trim() ? spreadsheetId.trim() : undefined,
-        sheetName: typeof sheetName === "string" && sheetName.trim() ? sheetName.trim() : undefined,
-      }
-    );
-
-    const usedSheetName = req.body?.sheetName || META_SHEET_NAME;
-    const appendMessage = result.appendResult.success
-      ? `Meta insights for ${result.metrics.date} appended to ${usedSheetName}`
-      : `Meta insights for ${result.metrics.date} fetched but NOT appended to sheet (${result.appendResult.error || "no error message"})`;
-
-    console.log("\n🟢 [API] Sending success response");
-    return res.json({
-      success: true,
-      data: {
-        metrics: result.metrics,
-        appendResult: result.appendResult,
-        serviceAccount: result.serviceAccount,
-        rawApi: result.rawApiSample,
-        spreadsheetId: req.body?.spreadsheetId || META_SPREADSHEET_ID,
-        sheetName: usedSheetName,
-      },
-      message: appendMessage,
-    });
-  } catch (error) {
-    console.log("\n🔴 [API] Sending error response");
-    console.error("[API] Error details:", error instanceof Error ? error.message : error);
-    return res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-/**
- * Fetch Shopify daily metrics (yesterday) via ShopifyQL and append to sheet
- * Requires store domain and private app access token
- */
-app.post("/api/shopify/fetch", async (req: Request, res: Response) => {
-  try {
-    console.log("\n🔵 [API] POST /api/shopify/fetch - Request received");
-
-    const { storeDomain, accessToken, spreadsheetId, sheetName } = req.body || {};
-
-    if (!storeDomain || !accessToken) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "storeDomain and accessToken are required. Please provide both in request body.",
-      });
-    }
-
-    const result = await shopifyWorkflow.runWorkflow(storeDomain, accessToken, {
-      spreadsheetId:
-        typeof spreadsheetId === "string" && spreadsheetId.trim()
-          ? spreadsheetId.trim()
-          : undefined,
-      sheetName:
-        typeof sheetName === "string" && sheetName.trim() ? sheetName.trim() : undefined,
-    });
-
-    const message = result.appendResult.success
-      ? `Shopify metrics for ${result.metrics.date} appended to ${result.sheetName}`
-      : `Shopify metrics for ${result.metrics.date} fetched but NOT appended (${result.appendResult.error || "no error message"})`;
-
-    console.log("\n🟢 [API] Sending Shopify success response");
-    return res.json({
-      success: true,
-      data: result,
-      message,
-    });
-  } catch (error) {
-    console.log("\n🔴 [API] Sending Shopify error response");
-    console.error("[API] Shopify error details:", error instanceof Error ? error.message : error);
-    return res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-/**
- * Fetch GA4 daily metrics (yesterday) and append to sheet if missing
- * Requires OAuth access token and GA4 property ID
- */
-app.post("/api/google/fetch", async (req: Request, res: Response) => {
-  try {
-    console.log("\n🔵 [API] POST /api/google/fetch - Request received");
-
-    const { accessToken, propertyId, spreadsheetId, sheetName } = req.body || {};
-
-    if (!accessToken || !propertyId) {
-      return res.status(400).json({
-        success: false,
-        error: "accessToken and propertyId are required.",
-      });
-    }
-
-    const result = await googleAnalyticsWorkflow.runWorkflow(accessToken, propertyId, {
-      spreadsheetId:
-        typeof spreadsheetId === "string" && spreadsheetId.trim()
-          ? spreadsheetId.trim()
-          : undefined,
-      sheetName:
-        typeof sheetName === "string" && sheetName.trim() ? sheetName.trim() : undefined,
-    });
-
-    const message = result.appendResult.mode === "skip"
-      ? `GA4 metrics for ${result.metrics.date} already present in ${result.sheetName}; append skipped`
-      : result.appendResult.success
-        ? `GA4 metrics for ${result.metrics.date} appended to ${result.sheetName}`
-        : `GA4 metrics for ${result.metrics.date} fetched but NOT appended (${result.appendResult.error || "no error message"})`;
-
-    console.log("\n🟢 [API] Sending Google success response");
-    return res.json({
-      success: true,
-      data: result,
-      message,
-    });
-  } catch (error) {
-    console.log("\n🔴 [API] Sending Google error response");
-    console.error("[API] Google error details:", error instanceof Error ? error.message : error);
-    return res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
 
 // ==================== RAW DATA ENDPOINT ====================
 
@@ -423,120 +271,6 @@ app.get(
 );
 
 
-// ==================== DIRECT SYNC ENDPOINTS ====================
-
-/**
- * Direct Meta sync with credentials from request
- */
-app.post("/api/v1/sync/meta/direct", async (req: Request, res: Response) => {
-  try {
-    const { accessToken, spreadsheetId, sheetName, targetDate } = req.body || {};
-
-    if (!accessToken) {
-      return res.status(400).json({
-        success: false,
-        error: "accessToken is required",
-      });
-    }
-
-    const result = await metaInsightsWorkflow.runWorkflow(accessToken, {
-      spreadsheetId: spreadsheetId || undefined,
-      sheetName: sheetName || undefined,
-    });
-
-    return res.json({
-      success: true,
-      data: {
-        metrics: result.metrics,
-        appendResult: result.appendResult,
-      },
-      message: result.appendResult.success
-        ? `Meta data appended successfully`
-        : `Meta data fetched but not appended: ${result.appendResult.error}`,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-/**
- * Direct GA4 sync with credentials from request
- */
-app.post("/api/v1/sync/ga4/direct", async (req: Request, res: Response) => {
-  try {
-    const { accessToken, propertyId, spreadsheetId, sheetName, targetDate } = req.body || {};
-
-    if (!accessToken || !propertyId) {
-      return res.status(400).json({
-        success: false,
-        error: "accessToken and propertyId are required",
-      });
-    }
-
-    const result = await googleAnalyticsWorkflow.runWorkflow(accessToken, propertyId, {
-      spreadsheetId: spreadsheetId || undefined,
-      sheetName: sheetName || undefined,
-    });
-
-    return res.json({
-      success: true,
-      data: {
-        metrics: result.metrics,
-        appendResult: result.appendResult,
-      },
-      message: result.appendResult.mode === "skip"
-        ? `GA4 data already exists for this date`
-        : result.appendResult.success
-          ? `GA4 data appended successfully`
-          : `GA4 data fetched but not appended: ${result.appendResult.error}`,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-/**
- * Direct Shopify sync with credentials from request
- */
-app.post("/api/v1/sync/shopify/direct", async (req: Request, res: Response) => {
-  try {
-    const { storeDomain, accessToken, spreadsheetId, sheetName, targetDate } = req.body || {};
-
-    if (!storeDomain || !accessToken) {
-      return res.status(400).json({
-        success: false,
-        error: "storeDomain and accessToken are required",
-      });
-    }
-
-    const result = await shopifyWorkflow.runWorkflow(storeDomain, accessToken, {
-      spreadsheetId: spreadsheetId || undefined,
-      sheetName: sheetName || undefined,
-    });
-
-    return res.json({
-      success: true,
-      data: {
-        metrics: result.metrics,
-        appendResult: result.appendResult,
-      },
-      message: result.appendResult.success
-        ? `Shopify data appended successfully`
-        : `Shopify data fetched but not appended: ${result.appendResult.error}`,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
 
 // Fallback route - serve the SPA
 app.get("*", (_req: Request, res: Response) => {

@@ -56,12 +56,11 @@ import { metaAdapter } from '../adapters/meta.adapter.js';
 import { ga4Adapter } from '../adapters/ga4.adapter.js';
 import { shopifyAdapter } from '../adapters/shopify.adapter.js';
 
-// Legacy services (for backward compatibility)
+// Services
 import { sheetsService } from '../services/sheets.js';
-import { metaInsightsWorkflow, META_SPREADSHEET_ID, META_SHEET_NAME } from '../services/meta.js';
-import { shopifyWorkflow, SHOPIFY_SPREADSHEET_ID, SHOPIFY_SHEET_NAME } from '../services/shopify.js';
-// Note: googleAnalyticsWorkflow has been deprecated and replaced with new GA4 service
-// Legacy import removed for deprecated module
+import { metaService, META_SPREADSHEET_ID, META_SHEET_NAME } from '../services/meta.service.js';
+import { shopifyService, SHOPIFY_SPREADSHEET_ID, SHOPIFY_SHEET_NAME } from '../services/shopify.service.js';
+import { ga4Service } from '../services/ga4.service.js';
 
 // Types
 import { ApiResponse, HealthCheckResponse, DataSource } from '../types/etl.js';
@@ -517,173 +516,8 @@ app.get('/api/data/raw/:spreadsheetId/:sheetName', authenticate, async (req: Req
   }
 });
 
-/**
- * Legacy Meta fetch (uses old workflow)
- */
-app.post('/api/meta/fetch', authenticate, async (req: Request, res: Response) => {
-  if (!requireAuth(req, res)) return;
 
-  try {
-    const { accessToken, spreadsheetId, sheetName } = req.body || {};
-    const userId = req.user!.userId;
 
-    if (!accessToken) {
-      res.status(400).json({
-        success: false,
-        error: 'Access token is required',
-      });
-      return;
-    }
-
-    // Dynamically import database functions
-    const { executeQuery } = await import('../lib/database.js');
-    const { decryptCredential } = await import('../lib/encryption.js');
-
-    // Fetch the credential from the database
-    const serviceConfigResult = await executeQuery(
-      `SELECT credential_id FROM service_configs
-       WHERE service = 'meta' AND user_id = $1 AND enabled = true
-       LIMIT 1`,
-      [userId],
-      userId
-    );
-
-    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
-      res.status(400).json({
-        success: false,
-        error: 'No enabled Meta service configuration found. Please configure credentials in the dashboard.',
-      });
-      return;
-    }
-
-    const credentialId = serviceConfigResult.rows[0].credential_id;
-    const credentialResult = await executeQuery(
-      `SELECT encrypted_data FROM credentials
-       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-      [credentialId, userId],
-      userId
-    );
-
-    if (credentialResult.rows.length === 0) {
-      res.status(400).json({
-        success: false,
-        error: `Credential with ID ${credentialId} not found in database`,
-      });
-      return;
-    }
-
-    const encryptedData = credentialResult.rows[0].encrypted_data;
-    const credentialJson = decryptCredential(encryptedData, String(userId));
-
-    const result = await metaInsightsWorkflow.runWorkflow(accessToken, {
-      spreadsheetId: spreadsheetId || undefined,
-      sheetName: sheetName || undefined,
-    }, credentialJson);
-
-    res.json({
-      success: true,
-      data: result,
-      message: result.appendResult.success
-        ? `Meta insights for ${result.metrics.date} synced`
-        : `Meta fetch completed but sheet write failed`,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * Legacy Shopify fetch
- */
-app.post('/api/shopify/fetch', authenticate, async (req: Request, res: Response) => {
-  if (!requireAuth(req, res)) return;
-
-  try {
-    const { storeDomain, accessToken, spreadsheetId, sheetName } = req.body || {};
-    const userId = req.user!.userId;
-
-    if (!storeDomain || !accessToken) {
-      res.status(400).json({
-        success: false,
-        error: 'storeDomain and accessToken are required',
-      });
-      return;
-    }
-
-    // Dynamically import database functions
-    const { executeQuery } = await import('../lib/database.js');
-    const { decryptCredential } = await import('../lib/encryption.js');
-
-    // Fetch the credential from the database
-    const serviceConfigResult = await executeQuery(
-      `SELECT credential_id FROM service_configs
-       WHERE service = 'shopify' AND user_id = $1 AND enabled = true
-       LIMIT 1`,
-      [userId],
-      userId
-    );
-
-    if (serviceConfigResult.rows.length === 0 || !serviceConfigResult.rows[0].credential_id) {
-      res.status(400).json({
-        success: false,
-        error: 'No enabled Shopify service configuration found. Please configure credentials in the dashboard.',
-      });
-      return;
-    }
-
-    const credentialId = serviceConfigResult.rows[0].credential_id;
-    const credentialResult = await executeQuery(
-      `SELECT encrypted_data FROM credentials
-       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-      [credentialId, userId],
-      userId
-    );
-
-    if (credentialResult.rows.length === 0) {
-      res.status(400).json({
-        success: false,
-        error: `Credential with ID ${credentialId} not found in database`,
-      });
-      return;
-    }
-
-    const encryptedData = credentialResult.rows[0].encrypted_data;
-    const credentialJson = decryptCredential(encryptedData, String(userId));
-
-    const result = await shopifyWorkflow.runWorkflow(storeDomain, accessToken, {
-      spreadsheetId: spreadsheetId || undefined,
-      sheetName: sheetName || undefined,
-    }, credentialJson);
-
-    res.json({
-      success: true,
-      data: result,
-      message: result.appendResult.success
-        ? `Shopify metrics for ${result.metrics.date} synced`
-        : `Shopify fetch completed but sheet write failed`,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * Legacy Google Analytics fetch - DEPRECATED
- */
-app.post('/api/google/fetch', authenticate, async (req: Request, res: Response) => {
-  if (!requireAuth(req, res)) return;
-
-  res.status(400).json({
-    success: false,
-    error: 'This endpoint is deprecated. Please use the new authenticated GA4 endpoints: POST /api/ga4/sync',
-  });
-});
 
 // ============================================================================
 // SERVER STARTUP
