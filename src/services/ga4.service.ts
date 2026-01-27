@@ -98,8 +98,8 @@ class Ga4Service {
           { name: "addToCarts" },
           { name: "ecommercePurchases" },
           { name: "totalRevenue" },
-          { name: "advertiserAdCost" },
           { name: "bounceRate" },
+          { name: "advertiserAdCost" },
         ],
         keepEmptyRows: true,
       };
@@ -167,8 +167,8 @@ class Ga4Service {
       add_to_cart: this.toNumber(metrics[2]?.value),
       purchases: this.toNumber(metrics[3]?.value),
       revenue: this.toNumber(metrics[4]?.value),
-      ad_spend: this.toNumber(metrics[5]?.value),
-      bounce_rate: this.toNumber(metrics[6]?.value),
+      bounce_rate: this.toNumber(metrics[5]?.value),
+      ad_spend: this.toNumber(metrics[6]?.value),
     };
   }
 
@@ -184,8 +184,8 @@ class Ga4Service {
       metrics.add_to_cart,
       metrics.purchases,
       metrics.revenue,
-      metrics.ad_spend,
       metrics.bounce_rate,
+      metrics.ad_spend,
     ];
   }
 
@@ -213,8 +213,8 @@ class Ga4Service {
       'add_to_cart',
       'purchases',
       'revenue',
-      'ad_spend',
-      'bounce_rate'
+      'bounce_rate',
+      'ad_spend'
     ];
     await sheetsService.ensureHeaderRow(spreadsheetId, sheetName, expectedHeaders);
 
