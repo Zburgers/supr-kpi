@@ -91,7 +91,10 @@ class Ga4Service {
       // Prepare the request body
       const requestBody = {
         dateRanges: [{ startDate: "yesterday", endDate: "yesterday" }],
-        dimensions: [{ name: "date" }],
+        dimensions: [
+          { name: "date" },
+          { name: "sessionCampaignName" }, // required with advertiserAdCost
+        ],
         metrics: [
           { name: "sessions" },
           { name: "totalUsers" },
