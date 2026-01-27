@@ -66,7 +66,7 @@ Content-Type: application/json
 
 ---
 
-### 🎯 **Service Layer Changes** (`src/services/meta.ts`)
+### 🎯 **Service Layer Changes** (`src/services/meta.service.ts`)
 
 #### Method Signatures:
 - ✅ `fetchFromMetaApi(accessToken)` - Now accepts dynamic token
@@ -155,7 +155,7 @@ const fullUrl = `${META_ENDPOINT}&access_token=${encodeURIComponent(accessToken)
 |------|---------|---------|
 | `public/index.html` | Added token input field | UI for token entry |
 | `public/app.js` | Added 3 functions & listeners | Frontend token management |
-| `src/services/meta.ts` | Accept token parameter | Dynamic token usage |
+| `src/services/meta.service.ts` | Accept token parameter | Dynamic token usage |
 | `src/server/index.ts` | Accept & validate token | Backend token handling |
 | `TOKEN_MANAGEMENT.md` | New doc | Usage guide & reference |
 

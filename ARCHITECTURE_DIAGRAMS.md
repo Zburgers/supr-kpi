@@ -309,7 +309,7 @@ END OF FLOW
               │ Pass token to workflow
               ▼
 ┌──────────────────────────────────────┐
-│  Service (src/services/meta.ts)      │
+│  Service (src/services/meta.service.ts)      │
 ├──────────────────────────────────────┤
 │ runWorkflow(accessToken)             │
 │  ├─ fetchFromMetaApi(token)          │

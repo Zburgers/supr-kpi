@@ -40,9 +40,9 @@ The current system has **TWO SEPARATE DATA FLOWS**:
 
 **Files involved:**
 - `src/server/index.ts` - Scheduler: `runDailySync()` at line 54-139
-- `src/services/meta.ts` - `runWorkflow()` fetches from Meta API, appends to sheets
-- `src/services/google.ts` - `runWorkflow()` fetches from GA4 API, appends to sheets  
-- `src/services/shopify.ts` - `runWorkflow()` fetches from Shopify API, appends to sheets
+- `src/services/meta.service.ts` - `runWorkflow()` fetches from Meta API, appends to sheets using stored credentials
+- `src/services/ga4.service.ts` - `runWorkflow()` fetches from GA4 API, appends to sheets using stored credentials
+- `src/services/shopify.service.ts` - `runWorkflow()` fetches from Shopify API, appends to sheets using stored credentials
 - `src/services/sheets.ts` - `appendRow()`, `upsertToSheet()` - writes to Google Sheets
 
 ---

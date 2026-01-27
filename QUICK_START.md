@@ -23,7 +23,6 @@ Meta access tokens are now **user-configurable** instead of hardcoded. Update to
 |------|--------------|-------|
 | `public/index.html` | Added token input field | +11 |
 | `public/app.js` | Added token functions & listeners | +25 |
-| `src/services/meta.ts` | Accept token parameter | ~12 |
 | `src/server/index.ts` | Accept & validate token | ~25 |
 
 ## 🚀 Usage

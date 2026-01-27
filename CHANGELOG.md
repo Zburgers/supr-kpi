@@ -120,7 +120,7 @@ function updateMetaToken() {
 
 ---
 
-### 3. `src/services/meta.ts`
+### 3. `src/services/meta.service.ts`
 **Changes:** Two method signatures modified
 
 #### 3.1 - MODIFIED Method: `fetchFromMetaApi()`
