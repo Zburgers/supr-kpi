@@ -62,6 +62,14 @@ export interface MetaDailyMetric extends BaseDailyMetric {
   purchases: number;
   /** Purchase revenue (INR) */
   revenue: number;
+  /** Return on Ad Spend (revenue / spend) */
+  roas: number;
+  /** Cost Per Mille - cost per 1000 impressions */
+  cpm: number;
+  /** Click-Through Rate (clicks / impressions * 100) */
+  ctr: number;
+  /** Customer Acquisition Cost (spend / purchases) */
+  // cac: number;
 }
 
 /**

@@ -34,6 +34,10 @@ export interface MetaInsightRow {
   initiate_checkout: number;
   purchases: number;
   revenue: number;
+  roas: number;
+  cpm: number;
+  ctr: number;
+  // cac: number;
   metricSources?: MetricSources;
 }
 
@@ -255,18 +259,38 @@ class MetaService {
 
     const revenueResult = this.pickRevenue(actionValues);
 
+    // Calculate derived metrics
+    const spend = this.toNumber(first.spend);
+    const impressions = this.toNumber(first.impressions);
+    const clicks = this.toNumber(first.clicks);
+    const revenue = revenueResult.value;
+    const purchases = purchaseCountResult.value;
+
+    // ROAS = Revenue / Spend
+    const roas = spend > 0 ? revenue / spend : 0;
+    // CPM = (Spend / Impressions) * 1000
+    const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
+    // CTR = (Clicks / Impressions) * 100
+    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+    // CAC = Spend / Purchases
+    // const cac = purchases > 0 ? spend / purchases : 0;
+
     const normalized: MetaInsightRow = {
       id: uuidv4(), // Generate UUID for the ID
       date: first.date_start,
-      spend: this.toNumber(first.spend),
+      spend: spend,
       reach: this.toNumber(first.reach),
-      impressions: this.toNumber(first.impressions),
-      clicks: this.toNumber(first.clicks),
+      impressions: impressions,
+      clicks: clicks,
       landing_page_views: lpvResult.value,
       add_to_cart: atcResult.value,
       initiate_checkout: icResult.value,
-      purchases: purchaseCountResult.value,
-      revenue: revenueResult.value,
+      purchases: purchases,
+      revenue: revenue,
+      roas: roas,
+      cpm: cpm,
+      ctr: ctr,
+      // cac: cac,
       metricSources: {
         landing_page_views_source: lpvResult.source,
         add_to_cart_source: atcResult.source,
@@ -288,6 +312,10 @@ class MetaService {
       initiate_checkout: normalized.initiate_checkout,
       purchases: normalized.purchases,
       revenue: normalized.revenue,
+      roas: normalized.roas,
+      cpm: normalized.cpm,
+      ctr: normalized.ctr,
+      // cac: normalized.cac,
     });
 
     return normalized;
@@ -306,6 +334,10 @@ class MetaService {
       metrics.initiate_checkout,
       metrics.purchases,
       metrics.revenue,
+      metrics.roas,
+      metrics.cpm,
+      metrics.ctr,
+      // metrics.cac,
     ];
 
     logger.info('Sheet row prepared', { row: JSON.stringify(row) });
@@ -355,7 +387,11 @@ class MetaService {
       'add_to_cart',
       'initiate_checkout',
       'purchases',
-      'revenue'
+      'revenue',
+      'roas',
+      'cpm',
+      'ctr',
+      // 'cac'
     ];
     await sheetsService.ensureHeaderRow(spreadsheetId, sheetName, expectedHeaders);
 

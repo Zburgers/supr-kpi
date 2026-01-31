@@ -67,6 +67,10 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
       'initiate_checkout',
       'purchases',
       'revenue',
+      'roas',
+      'cpm',
+      'ctr',
+      // 'cac',
     ];
   }
 
@@ -169,13 +173,28 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
     const { value: revenue, source: revenueSource } = this.pickRevenue(data.action_values);
     logger.debug('Meta revenue source', { source: revenueSource, value: revenue });
 
+    const spend = toNumber(data.spend);
+    const impressions = toNumber(data.impressions);
+    const clicks = toNumber(data.clicks);
+    const purchases = this.pickAction(data.actions, [
+      'purchase',
+      'offsite_conversion.fb_pixel_purchase',
+      'omni_purchase',
+    ]);
+
+    // Calculate derived metrics
+    const roas = spend > 0 ? revenue / spend : 0;
+    const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
+    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+    // const cac = purchases > 0 ? spend / purchases : 0;
+
     return {
       source: 'meta',
       date: data.date_start,
-      spend: toNumber(data.spend),
+      spend: spend,
       reach: toNumber(data.reach),
-      impressions: toNumber(data.impressions),
-      clicks: toNumber(data.clicks),
+      impressions: impressions,
+      clicks: clicks,
       landing_page_views: this.pickAction(data.actions, [
         'landing_page_view',
         'omni_landing_page_view',
@@ -190,12 +209,12 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
         'offsite_conversion.fb_pixel_initiate_checkout',
         'omni_initiated_checkout',
       ]),
-      purchases: this.pickAction(data.actions, [
-        'purchase',
-        'offsite_conversion.fb_pixel_purchase',
-        'omni_purchase',
-      ]),
-      revenue,
+      purchases: purchases,
+      revenue: revenue,
+      roas: roas,
+      cpm: cpm,
+      ctr: ctr,
+      // cac: cac,
     };
   }
 
@@ -215,6 +234,10 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
       metrics.initiate_checkout,
       metrics.purchases,
       metrics.revenue,
+      metrics.roas,
+      metrics.cpm,
+      metrics.ctr,
+      // metrics.cac,
     ];
   }
 
