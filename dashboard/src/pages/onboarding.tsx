@@ -73,7 +73,7 @@ function OnboardingContent() {
           </div>
           <div>
             <h1 className="text-4xl font-bold text-foreground mb-3">
-              Welcome to KPI Dashboard
+              Welcome to Pegasus
             </h1>
             <p className="text-xl text-muted-foreground">
               Let's set up your data sources to get started

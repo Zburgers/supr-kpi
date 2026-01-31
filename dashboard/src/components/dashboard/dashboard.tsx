@@ -712,7 +712,7 @@ export function Dashboard() {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Unified KPI tracking for modern e-commerce
+              Pegasus - KPI tracking for modern e-commerce
             </p>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { AuthGuard } from '@/components/auth'
 import { Dashboard } from '@/components/dashboard/dashboard'
 import { Onboarding } from '@/pages/onboarding'
 import { Settings } from '@/pages/settings'
+import { PrivacyPolicy } from '@/pages/privacy-policy'
 import { useAuthenticatedApi } from '@/hooks/use-authenticated-api'
 import { useUserStatus } from '@/hooks/useUserStatus'
 import { navigate } from '@/lib/navigation'
@@ -78,6 +79,27 @@ function AppContent() {
 }
 
 function App() {
+  const [currentPath, setCurrentPath] = useState(window.location.pathname)
+
+  useEffect(() => {
+    const handleNavigation = () => {
+      setCurrentPath(window.location.pathname)
+    }
+
+    window.addEventListener('popstate', handleNavigation)
+    return () => window.removeEventListener('popstate', handleNavigation)
+  }, [])
+
+  // Public pages that don't require authentication
+  if (currentPath === '/privacy-policy') {
+    return (
+      <ThemeProvider defaultTheme="dark" storageKey="kpi-dashboard-theme">
+        <PrivacyPolicy />
+      </ThemeProvider>
+    )
+  }
+
+  // All other pages require authentication
   return (
     <ThemeProvider defaultTheme="dark" storageKey="kpi-dashboard-theme">
       <AuthGuard>

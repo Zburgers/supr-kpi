@@ -25,7 +25,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">KPI Dashboard</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Pegasus</h1>
             <p className="text-muted-foreground">
               {mode === 'sign-in' 
                 ? 'Sign in to access your analytics dashboard' 
