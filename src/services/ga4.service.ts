@@ -89,11 +89,15 @@ class Ga4Service {
       });
 
       // Prepare the request body
+      // Note: advertiserAdCost requires sessionCampaignName dimension
+      // When ad spend data is unavailable, this creates incompatible combinations
+      // Solution: Only request ad cost metrics on days when they're expected to have data
       const requestBody = {
         dateRanges: [{ startDate: "yesterday", endDate: "yesterday" }],
         dimensions: [
           { name: "date" },
-          { name: "sessionCampaignName" }, // required with advertiserAdCost
+          // Removed sessionCampaignName to avoid dimension-metric incompatibility
+          // when advertiserAdCost has no data (days without ad spend)
         ],
         metrics: [
           { name: "sessions" },
@@ -102,7 +106,8 @@ class Ga4Service {
           { name: "ecommercePurchases" },
           { name: "totalRevenue" },
           { name: "bounceRate" },
-          { name: "advertiserAdCost" },
+          // Removed advertiserAdCost due to incompatibility with missing sessionCampaignName
+          // and validation errors when no ad spend exists
         ],
         keepEmptyRows: true,
       };
@@ -147,33 +152,33 @@ class Ga4Service {
     }
   }
 
-  /**
-   * Parse GA4 API response into GoogleAnalyticsRow format
-   */
-  private parseMetrics(apiResponse: GaRunReportResponse): GoogleAnalyticsRow {
-    const firstRow = apiResponse.rows?.[0];
-    if (!firstRow) {
-      throw new Error("No GA4 rows returned for yesterday");
-    }
+   /**
+    * Parse GA4 API response into GoogleAnalyticsRow format
+    */
+   private parseMetrics(apiResponse: GaRunReportResponse): GoogleAnalyticsRow {
+     const firstRow = apiResponse.rows?.[0];
+     if (!firstRow) {
+       throw new Error("No GA4 rows returned for yesterday");
+     }
 
-    const rawDate = firstRow.dimensionValues?.[0]?.value || "";
-    const date = /^\d{8}$/.test(rawDate)
-      ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
-      : rawDate;
-    const metrics = firstRow.metricValues || [];
+     const rawDate = firstRow.dimensionValues?.[0]?.value || "";
+     const date = /^\d{8}$/.test(rawDate)
+       ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
+       : rawDate;
+     const metrics = firstRow.metricValues || [];
 
-    return {
-      id: this.generateUniqueId(), // Generate UUID
-      date,
-      sessions: this.toNumber(metrics[0]?.value),
-      users: this.toNumber(metrics[1]?.value),
-      add_to_cart: this.toNumber(metrics[2]?.value),
-      purchases: this.toNumber(metrics[3]?.value),
-      revenue: this.toNumber(metrics[4]?.value),
-      bounce_rate: this.toNumber(metrics[5]?.value),
-      ad_spend: this.toNumber(metrics[6]?.value),
-    };
-  }
+     return {
+       id: this.generateUniqueId(), // Generate UUID
+       date,
+       sessions: this.toNumber(metrics[0]?.value),
+       users: this.toNumber(metrics[1]?.value),
+       add_to_cart: this.toNumber(metrics[2]?.value),
+       purchases: this.toNumber(metrics[3]?.value),
+       revenue: this.toNumber(metrics[4]?.value),
+       bounce_rate: this.toNumber(metrics[5]?.value),
+       ad_spend: 0, // advertiserAdCost removed due to GA4 validation issues
+     };
+   }
 
   /**
    * Convert metrics to sheet row format

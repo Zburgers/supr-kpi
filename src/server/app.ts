@@ -1,6 +1,6 @@
 /**
- * Express server for ETL Pipeline
- * API endpoints for sync operations and health monitoring
+ * Pegasus by NeuraTech - Express server
+ * ETL Pipeline API endpoints for sync operations and health monitoring
  *
  * @module server
  */
@@ -675,6 +675,10 @@ async function startServer(): Promise<void> {
     console.log('   GA4 Yesterday Sync:        POST /api/ga4/sync/yesterday');
     console.log('   Shopify Sync:              POST /api/shopify/sync');
     console.log('   Shopify Yesterday Sync:    POST /api/shopify/sync/yesterday');
+
+    console.log('');
+    console.log('📄 Privacy Policy:');
+    console.log('   Privacy Policy:              GET  /privacy-policy');
 
     console.log('');
     console.log('💡 Note: All authenticated endpoints require Clerk JWT token');

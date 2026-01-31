@@ -72,20 +72,23 @@ class Ga4Adapter implements BaseAdapter<Ga4DailyMetric, Ga4SyncOptions> {
   /**
    * Fetch data from GA4 Data API
    */
-  private async fetchFromApi(accessToken: string, propertyId: string): Promise<Ga4RunReportResponse> {
-    const body = {
-      dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
-      dimensions: [{ name: 'date' }],
-      metrics: [
-        { name: 'sessions' },
-        { name: 'totalUsers' },
-        { name: 'addToCarts' },
-        { name: 'ecommercePurchases' },
-        { name: 'totalRevenue' },
-        { name: 'bounceRate' },
-      ],
-      keepEmptyRows: true,
-    };
+   private async fetchFromApi(accessToken: string, propertyId: string): Promise<Ga4RunReportResponse> {
+     // Note: advertiserAdCost metric requires sessionCampaignName dimension
+     // When ad spend data is unavailable, this creates incompatible combinations
+     // that cause GA4 API validation errors. Removed both to ensure stable daily syncs.
+     const body = {
+       dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
+       dimensions: [{ name: 'date' }],
+       metrics: [
+         { name: 'sessions' },
+         { name: 'totalUsers' },
+         { name: 'addToCarts' },
+         { name: 'ecommercePurchases' },
+         { name: 'totalRevenue' },
+         { name: 'bounceRate' },
+       ],
+       keepEmptyRows: true,
+     };
 
     logger.debug('Fetching GA4 report', { propertyId });
 

@@ -1,7 +1,7 @@
 {
-  "name": "kpi-etl-pipeline",
+  "name": "pegasus",
   "version": "2.0.0",
-  "description": "Universal ETL Pipeline for daily KPI metrics from Meta Ads, GA4, and Shopify to Google Sheets",
+  "description": "Pegasus by NeuraTech - Universal ETL Pipeline for KPI metrics from Meta Ads, GA4, and Shopify",
   "type": "module",
   "main": "dist/server/app.js",
   "scripts": {
