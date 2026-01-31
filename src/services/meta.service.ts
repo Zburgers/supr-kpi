@@ -64,6 +64,9 @@ interface MetaApiResponse {
     clicks: string;
     actions?: MetaAction[];
     action_values?: MetaAction[];
+    cpm?: string;
+    ctr?: string;
+    purchase_roas?: string | MetaAction[];
   }>;
   paging?: {
     cursors: {
@@ -167,7 +170,7 @@ class MetaService {
     const formattedAdAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
 
     // Build the endpoint URL with the properly formatted ad account ID
-    const endpoint = `https://graph.facebook.com/v24.0/${formattedAdAccountId}/insights?time_increment=1&date_preset=yesterday&action_breakdowns=action_type&fields=date_start%2Cdate_stop%2Cspend%2Creach%2Cimpressions%2Cclicks%2Cactions%2Caction_values`;
+    const endpoint = `https://graph.facebook.com/v24.0/${formattedAdAccountId}/insights?time_increment=1&date_preset=yesterday&action_breakdowns=action_type&fields=date_start%2Cdate_stop%2Cspend%2Creach%2Cimpressions%2Cclicks%2Cactions%2Caction_values%2Ccpm%2Cctr%2Cpurchase_roas`;
     const fullUrl = `${endpoint}&access_token=${encodeURIComponent(accessToken)}`;
 
     let response: Response;
@@ -266,13 +269,28 @@ class MetaService {
     const revenue = revenueResult.value;
     const purchases = purchaseCountResult.value;
 
-    // ROAS = Revenue / Spend
-    const roas = spend > 0 ? revenue / spend : 0;
-    // CPM = (Spend / Impressions) * 1000
-    const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-    // CTR = (Clicks / Impressions) * 100
-    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-    // CAC = Spend / Purchases
+    // Get metrics directly from Meta API
+    // purchase_roas can be either a string number or an array of action objects
+    let roas = 0;
+    if (first.purchase_roas) {
+      if (Array.isArray(first.purchase_roas)) {
+        // If it's an array, extract value from first element
+        const roasArray = first.purchase_roas;
+        logger.info('Meta purchase_roas is array', { 
+          roasArray: JSON.stringify(roasArray),
+          roasArrayLength: roasArray.length
+        });
+        roas = roasArray.length > 0 ? this.toNumber(roasArray[0].value) : 0;
+      } else {
+        // If it's a string/number, convert directly
+        logger.info('Meta purchase_roas is string', { 
+          value: first.purchase_roas 
+        });
+        roas = this.toNumber(first.purchase_roas);
+      }
+    }
+    const cpm = this.toNumber(first.cpm);
+    const ctr = this.toNumber(first.ctr);
     // const cac = purchases > 0 ? spend / purchases : 0;
 
     const normalized: MetaInsightRow = {

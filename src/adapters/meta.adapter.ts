@@ -39,6 +39,9 @@ interface MetaApiResponse {
     clicks: string;
     actions?: MetaAction[];
     action_values?: MetaAction[];
+    cpm?: string;
+    ctr?: string;
+    purchase_roas?: string | MetaAction[];
   }>;
 }
 
@@ -134,7 +137,7 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
    * Fetch data from Meta Graph API
    */
   private async fetchFromApi(accessToken: string, accountId: string, targetDate: IsoDate): Promise<MetaApiResponse> {
-    const fields = 'date_start,date_stop,spend,reach,impressions,clicks,actions,action_values';
+    const fields = 'date_start,date_stop,spend,reach,impressions,clicks,actions,action_values,cpm,ctr,purchase_roas';
     const url = `https://graph.facebook.com/${this.apiVersion}/${accountId}/insights?` +
       `time_increment=1&date_preset=yesterday&action_breakdowns=action_type&fields=${fields}` +
       `&access_token=${encodeURIComponent(accessToken)}`;
@@ -182,10 +185,28 @@ class MetaAdapter implements BaseAdapter<MetaDailyMetric, MetaSyncOptions> {
       'omni_purchase',
     ]);
 
-    // Calculate derived metrics
-    const roas = spend > 0 ? revenue / spend : 0;
-    const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
-    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+    // Get metrics directly from Meta API
+    // purchase_roas can be either a string number or an array of action objects
+    let roas = 0;
+    if (data.purchase_roas) {
+      if (Array.isArray(data.purchase_roas)) {
+        // If it's an array, extract value from first element
+        const roasArray = data.purchase_roas;
+        logger.info('Meta purchase_roas is array', { 
+          roasArray: JSON.stringify(roasArray),
+          roasArrayLength: roasArray.length
+        });
+        roas = roasArray.length > 0 ? toNumber(roasArray[0].value) : 0;
+      } else {
+        // If it's a string/number, convert directly
+        logger.info('Meta purchase_roas is string', { 
+          value: data.purchase_roas 
+        });
+        roas = toNumber(data.purchase_roas);
+      }
+    }
+    const cpm = toNumber(data.cpm);
+    const ctr = toNumber(data.ctr);
     // const cac = purchases > 0 ? spend / purchases : 0;
 
     return {
