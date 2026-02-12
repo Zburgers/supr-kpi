@@ -3,11 +3,12 @@ import { useState } from 'react'
 
 interface AuthGuardProps {
   children: React.ReactNode
+  defaultMode?: 'sign-in' | 'sign-up'
 }
 
-export function AuthGuard({ children }: AuthGuardProps) {
+export function AuthGuard({ children, defaultMode = 'sign-in' }: AuthGuardProps) {
   const { isLoaded, isSignedIn } = useAuth()
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>(defaultMode)
 
   if (!isLoaded) {
     return (

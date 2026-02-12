@@ -7,6 +7,7 @@ import { Dashboard } from '@/components/dashboard/dashboard'
 import { Onboarding } from '@/pages/onboarding'
 import { Settings } from '@/pages/settings'
 import { PrivacyPolicy } from '@/pages/privacy-policy'
+import { LandingPage } from '@/components/landing/landing-page'
 import { useAuthenticatedApi } from '@/hooks/use-authenticated-api'
 import { useUserStatus } from '@/hooks/useUserStatus'
 import { navigate } from '@/lib/navigation'
@@ -45,7 +46,7 @@ function AppContent() {
   const renderPage = () => {
     // If onboarding is complete but URL is still /onboarding, send user to dashboard
     if (!needsOnboarding && currentPath === '/onboarding') {
-      navigate('/')
+      navigate('/dashboard')
       return <Dashboard />
     }
 
@@ -99,7 +100,27 @@ function App() {
     )
   }
 
-  // All other pages require authentication
+  // Landing page for unauthenticated visitors on "/"
+  if (currentPath === '/') {
+    return (
+      <ThemeProvider defaultTheme="dark" storageKey="kpi-dashboard-theme">
+        <LandingOrDashboard />
+      </ThemeProvider>
+    )
+  }
+
+  // /login and /signup routes show the AuthGuard (Clerk sign-in/sign-up)
+  if (currentPath === '/login' || currentPath === '/signup') {
+    return (
+      <ThemeProvider defaultTheme="dark" storageKey="kpi-dashboard-theme">
+        <AuthGuard defaultMode={currentPath === '/signup' ? 'sign-up' : 'sign-in'}>
+          <AppContent />
+        </AuthGuard>
+      </ThemeProvider>
+    )
+  }
+
+  // All other pages (dashboard, settings, onboarding) require authentication
   return (
     <ThemeProvider defaultTheme="dark" storageKey="kpi-dashboard-theme">
       <AuthGuard>
@@ -107,6 +128,31 @@ function App() {
       </AuthGuard>
     </ThemeProvider>
   )
+}
+
+/**
+ * For the "/" route: if user is signed in, show dashboard. Otherwise, show landing page.
+ */
+function LandingOrDashboard() {
+  const { isSignedIn, isLoaded } = useUser()
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    )
+  }
+
+  if (isSignedIn) {
+    return (
+      <AuthGuard>
+        <AppContent />
+      </AuthGuard>
+    )
+  }
+
+  return <LandingPage />
 }
 
 export default App

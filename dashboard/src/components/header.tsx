@@ -56,7 +56,7 @@ export function Header({
       <div className="w-full max-w-7xl mx-auto flex h-16 items-center justify-between px-4 md:px-6 lg:px-8">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <img src="/pegasus-icon.svg" alt="Pegasus" className="h-8 w-8" />
+            <img src="/pegasus-icon.svg" alt="Pegasus" className="h-8 w-auto" />
             <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
               Pegasus
             </h1>
