@@ -59,6 +59,11 @@ router.get(
       const params: (string | number)[] = [];
       let paramIndex = 1;
 
+      // CRITICAL: Always filter by user_id for multi-tenant isolation
+      // This is in addition to RLS enforcement
+      conditions.push(`user_id = $${paramIndex++}`);
+      params.push(req.user!.userId);
+
       if (filters.service) {
         conditions.push(`service = $${paramIndex++}`);
         params.push(filters.service);
@@ -79,7 +84,7 @@ router.get(
         params.push(filters.endDate);
       }
 
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
       // Get total count
       const countQuery = `SELECT COUNT(*) as total FROM audit_logs ${whereClause}`;

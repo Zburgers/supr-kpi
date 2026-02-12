@@ -138,8 +138,10 @@ export async function getAuditLogs(
     offset?: number;
   }
 ): Promise<AuditLogEntry[]> {
-  let query = 'SELECT * FROM audit_logs WHERE 1=1';
-  const params: any[] = [];
+  // CRITICAL: Always filter by user_id for multi-tenant isolation
+  // This ensures logs are isolated per user and reinforces RLS policy
+  let query = 'SELECT * FROM audit_logs WHERE user_id = $1';
+  const params: any[] = [userId];
 
   if (options?.action) {
     query += ` AND action = $${params.length + 1}`;
@@ -175,14 +177,16 @@ export async function getAuditLogs(
 export async function getAuditLogsSummary(
   userId: number
 ): Promise<Record<string, number>> {
+  // CRITICAL: Filter by user_id for multi-tenant isolation
   const result = await executeQuery(
     `
     SELECT action, COUNT(*) as count
     FROM audit_logs
+    WHERE user_id = $1
     GROUP BY action
     ORDER BY count DESC;
     `,
-    [],
+    [userId],
     userId
   );
 
